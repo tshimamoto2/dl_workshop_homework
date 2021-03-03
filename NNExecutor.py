@@ -416,15 +416,15 @@ class NNExecutor:
         #   input_retain_rate=0.7, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.022, Avg.Accuracy=0.995, Max.Accuracy=1.000, Argmax=2
         #   input_retain_rate=0.8, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.020, Avg.Accuracy=0.996, Max.Accuracy=1.000, Argmax=2
         #   input_retain_rate=0.9, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.019, Avg.Accuracy=0.995, Max.Accuracy=1.000, Argmax=2
-        model = DNN(input_size=784,
-                    layer_size_list=[100, 100, 5],
-                    hidden_actfunc=Tanh(),
-                    output_actfunc=SoftmaxWithLoss(),
-                    loss_func=CrossEntropyError(),
-                    init_weight_stddev=0.01,
-                    learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
-                    dropout_params=DropoutParams(input_retain_rate=0.8, hidden_retain_rate=0.5)
-                    )
+        # model = DNN(input_size=784,
+        #             layer_size_list=[100, 100, 5],
+        #             hidden_actfunc=Tanh(),
+        #             output_actfunc=SoftmaxWithLoss(),
+        #             loss_func=CrossEntropyError(),
+        #             init_weight_stddev=0.01,
+        #             learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
+        #             dropout_params=DropoutParams(input_retain_rate=0.8, hidden_retain_rate=0.5)
+        #             )
         # ------------------------------
         # 推奨パラメータでやってみる。
         # 原論文：N.Srivastava, G.Hinton, A.Krizhevsky, I.Sutskever, R.Salakhutdinov.
@@ -1059,5 +1059,18 @@ class NNExecutor:
         #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)),
         #               batch_normal_params=BatchNormalParams(gamma=5.0, beta=0.5, moving_decay=0.9)
         #               )
+
+        # k分割での最良モデル『KFold-Tanh-AdaDelta』でバッチ正規化をやってみる。
+        #   gamma=5.0, beta=0.5, moving_decay=0.9：★Avg.l_loss=0.0062, Avg.l_accuracy=0.9979, Max.l_accuracy=0.9990, l_argmax=9 | Avg.v_loss=0.0051, Avg.v_accuracy=0.9980, Max.v_accuracy=1.0000, v_argmax=0
+        #   ↑ミニバッチのときと比べてさらに損失が低い。
+        model = DNN(input_size=784,
+                    layer_size_list=[100, 100, 5],
+                    hidden_actfunc=Tanh(),
+                    output_actfunc=SoftmaxWithLoss(),
+                    loss_func=CrossEntropyError(),
+                    init_weight_stddev=0.01,
+                    learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
+                    batch_normal_params=BatchNormalParams(gamma=5.0, beta=0.5, moving_decay=0.9)
+                    )
 
         return model
