@@ -65,14 +65,103 @@ class NNExecutor:
         ##################################################
         # 以下リファクタリング後：各活性化関数、損失関数を切り替えることができるようにした。
         ##################################################
-        # 2層、シグモイド、ミニバッチサイズ100　⇒20%のまま進まず。
-        # ★Avg.Loss=1.612, Avg.Accuracy=0.200, Max.Accuracy=0.200, Argmax=0
+        # （変遷１）入力データは単純正規化（255で割るだけ）／2層／エポック数3／ミニバッチサイズ100／Sigmoid／SGD
+        # ⇒Accuracy20%程度。
+        # ★Avg.loss=1.608, Avg.accuracy=0.248, Max.accuracy=0.345, Argmax=2 | Avg.test_loss=1.609, Avg.test_accuracy=0.245, Max.test_accuracy=0.335, Argmax=2
         # self.nn = DNN(input_size=784,
         #               layer_size_list=[100, 5],
         #               hidden_actfunc=Sigmoid(),
         #               output_actfunc=SoftmaxWithLoss(),
         #               loss_func=CrossEntropyError(),
-        #               learner=MiniBatch(epoch_num=100, mini_batch_size=100, learning_rate=0.01))
+        #               learner=MiniBatch(epoch_num=3, mini_batch_size=100, optimizer=SGD(learning_rate=0.01)))
+
+        # （変遷２）エポック数を変えてみた。エポック数100
+        # ⇒★Avg.loss=1.467, Avg.accuracy=0.733, Max.accuracy=0.922, Argmax=93 | Avg.test_loss=1.477, Avg.test_accuracy=0.715, Max.test_accuracy=0.935, Argmax=96
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 5],
+        #               hidden_actfunc=Sigmoid(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=100, optimizer=SGD(learning_rate=0.01)))
+
+        # （変遷３－１）ミニバッチサイズを変えてみた。エポック数は100でミニバッチサイズ50の場合
+        # ⇒★Avg.loss=1.062, Avg.accuracy=0.818, Max.accuracy=0.959, Argmax=88 | Avg.test_loss=1.082, Avg.test_accuracy=0.810, Max.test_accuracy=0.960, Argmax=82
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 5],
+        #               hidden_actfunc=Sigmoid(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=50, optimizer=SGD(learning_rate=0.01)))
+
+        # （変遷３－２）ミニバッチサイズを変えてみた。エポック数は100でミニバッチサイズ10の場合
+        # ⇒ミニバッチサイズ50のときよりもさらに学習が進み、正解率も高くなった。
+        # ★Avg.loss=0.289, Avg.accuracy=0.936, Max.accuracy=0.995, Argmax=98 | Avg.test_loss=0.309, Avg.test_accuracy=0.931, Max.test_accuracy=0.985, Argmax=30
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 5],
+        #               hidden_actfunc=Sigmoid(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01)))
+
+        # （変遷４）層数を変えてみた。3層
+        # ⇒学習が全く進まない。
+        # ★Avg.loss=1.612, Avg.accuracy=0.201, Max.accuracy=0.210, Argmax=74 | Avg.test_loss=1.614, Avg.test_accuracy=0.195, Max.test_accuracy=0.220, Argmax=1
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 5],
+        #               hidden_actfunc=Sigmoid(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01)))
+
+        # （変遷４－１）3層で、tanhに変えてみた。
+        # ⇒ 学習が進み、最大Accuracyが96%になった。
+        # ★Avg.loss=0.222, Avg.accuracy=0.944, Max.accuracy=1.000, Argmax=66 | Avg.test_loss=0.336, Avg.test_accuracy=0.906, Max.test_accuracy=0.960, Argmax=28
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 5],
+        #               hidden_actfunc=Tanh(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01)))
+
+        # （変遷４－２）3層で、ReLUに変えてみた。
+        # ⇒学習が進んだ。
+        # ★Avg.loss=0.308, Avg.accuracy=0.876, Max.accuracy=1.000, Argmax=63 | Avg.test_loss=0.461, Avg.test_accuracy=0.838, Max.test_accuracy=0.965, Argmax=73
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 5],
+        #               hidden_actfunc=ReLU(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01)))
+
+        # （変遷４－３）試しにReLUで4層にしてみた。
+        # ⇒学習が全く進まない。
+        # ★Avg.loss=1.609, Avg.accuracy=0.211, Max.accuracy=0.211, Argmax=0 | Avg.test_loss=1.614, Avg.test_accuracy=0.155, Max.test_accuracy=0.155, Argmax=0
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 100, 5],
+        #               hidden_actfunc=ReLU(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01)))
+
+        # （変遷４－４）ReLUで5層にしてみた。
+        # ⇒学習が全く進まない。
+        # ★Avg.loss=1.609, Avg.accuracy=0.209, Max.accuracy=0.209, Argmax=0 | Avg.test_loss=1.613, Avg.test_accuracy=0.165, Max.test_accuracy=0.165, Argmax=0
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 100, 100, 5],
+        #               hidden_actfunc=ReLU(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01)))
+
+        # （変遷４－５）試しにReLUで10層にしてみた。
+        # ⇒学習が全く進まない。
+        # ★Avg.loss=1.609, Avg.accuracy=0.209, Max.accuracy=0.209, Argmax=0 | Avg.test_loss=1.612, Avg.test_accuracy=0.165, Max.test_accuracy=0.165, Argmax=0
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 100, 100, 100, 100, 100, 100, 100, 5],
+        #               hidden_actfunc=ReLU(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01)))
 
         # 2層、tanh⇒28%のまま進まず。
         # ★Avg.Loss=1.611, Avg.Accuracy=0.283, Max.Accuracy=0.283, Argmax=0
@@ -244,12 +333,12 @@ class NNExecutor:
         # AdaGrad
         # ★Avg.loss=0.017, Avg.accuracy=0.998, Max.accuracy=1.000, Argmax=17 | Avg.test_loss=0.154, Avg.test_accuracy=0.959, Max.test_accuracy=0.975, Argmax=60
         # ※白黒反転時：★Avg.loss=0.002, Avg.accuracy=1.000, Max.accuracy=1.000, Argmax=4 | Avg.test_loss=0.167, Avg.test_accuracy=0.960, Max.test_accuracy=0.960, Argmax=0
-        # self.nn = DNN(input_size=784,
-        #               layer_size_list=[100, 100, 5],
-        #               hidden_actfunc=Tanh(),
-        #               output_actfunc=SoftmaxWithLoss(),
-        #               loss_func=CrossEntropyError(),
-        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)))
+        self.nn = DNN(input_size=784,
+                      layer_size_list=[100, 100, 5],
+                      hidden_actfunc=Tanh(),
+                      output_actfunc=SoftmaxWithLoss(),
+                      loss_func=CrossEntropyError(),
+                      learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)))
 
         # AdaDelta
         # ★Avg.loss=0.014, Avg.accuracy=0.995, Max.accuracy=1.000, Argmax=14 | Avg.test_loss=0.208, Avg.test_accuracy=0.958, Max.test_accuracy=0.975, Argmax=87
@@ -309,12 +398,12 @@ class NNExecutor:
         # 　⇒Momentumよりもさらに早く最大正解率100%に到達した。
         # ★Avg.loss=0.103, Avg.accuracy=0.964, Max.accuracy=1.000, Argmax=75 | Avg.test_loss=0.232, Avg.test_accuracy=0.924, Max.test_accuracy=0.960, Argmax=23
         # ※白黒反転時：★Avg.loss=0.001, Avg.accuracy=1.000, Max.accuracy=1.000, Argmax=4 | Avg.test_loss=0.120, Avg.test_accuracy=0.965, Max.test_accuracy=0.970, Argmax=0
-        self.nn = DNN(input_size=784,
-                      layer_size_list=[100, 100, 5],
-                      hidden_actfunc=ReLU(),
-                      output_actfunc=SoftmaxWithLoss(),
-                      loss_func=CrossEntropyError(),
-                      learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)))
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 5],
+        #               hidden_actfunc=ReLU(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)))
 
         # 同上、AdaDelta　⇒AdaGradと同程度に早く最大正解率100%に到達した。
         # ★Avg.loss=0.021, Avg.accuracy=0.991, Max.accuracy=1.000, Argmax=17 | Avg.test_loss=0.244, Avg.test_accuracy=0.958, Max.test_accuracy=0.970, Argmax=25
