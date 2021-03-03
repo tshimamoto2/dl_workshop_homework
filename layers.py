@@ -4,13 +4,18 @@ import numpy as np
 # 隠れ層クラス
 ##################################################
 class HiddenLayer:
-    def __init__(self, W, B, actfunc, batch_normal=None, input_dropout=None, hidden_dropout=None):
+    def __init__(self, W, B, actfunc, batch_normal_params=None, input_dropout=None, hidden_dropout=None):
         self.affine = Affine(W, B)
         self.activation = actfunc
         self.act_dist = None
-        self.batch_normal = batch_normal
+
         self.input_dropout = input_dropout
         self.hidden_dropout = hidden_dropout
+
+        self.batch_normal_params = batch_normal_params
+        self.batch_normal = None
+        if self.batch_normal_params is not None:
+            self.batch_normal = BatchNormal(self.batch_normal_params)
 
     def forward(self, x, t, is_learning=False):
         z = x
@@ -23,8 +28,8 @@ class HiddenLayer:
         z = self.affine.forward(z, t)
 
         # バッチ正規化。アフィン変換と活性化の間。
-        if self.batch_normal is not None:
-            z = self.batch_normal.forward(z)
+        if self.batch_normal_params is not None:
+            z = self.batch_normal.forward(z, is_learning)
 
         # 活性化。
         z = self.activation.forward(z, t)
@@ -63,10 +68,9 @@ class HiddenLayer:
 # 出力層クラス
 ##################################################
 class LastLayer:
-    def __init__(self, W, B, actfunc, batch_normal=False):
+    def __init__(self, W, B, actfunc):
         self.affine = Affine(W, B)
         self.activation = actfunc
-        self.batch_normal = batch_normal
         self.act_dist = None
 
     # is_learningは未使用。HiddenLayerクラスと形を合わせただけ。
@@ -180,120 +184,6 @@ class SoftmaxWithLoss:
             y = np.exp(x) / np.sum(np.exp(x), axis=0)
             return y.T
 
-class BatchNormal:
-    def __init__(self, gamma=1.0, beta=0.0):
-        self.gamma = gamma
-        self.beta = beta
-        self.eps = 1.0e-8
-
-        # 誤差逆伝播のために、順伝播時に算出した値を保持しておくための変数。
-        self.x = None
-        self.mu = None
-        self.diff = None
-        self.diff2 = None
-        self.var = None
-        self.stddev = None
-        self.invstddev = None
-        self.xnormalized = None
-        self.xscaled = None
-
-    # 順伝播。
-    # 入力データxの行方向にはミニバッチサイズ分だけの処理対象データが並んでいるとする。N個とする。
-    # 入力データxの列方向には784個の各画素値が並んでいるものとする。D個（=784）とする。
-    # ※なお、「ノード」は紛らわしい用語であるため、以下とする。
-    # 　・『ノード』：ここでは計算グラフ理論でのノードを指すものとする。『加算ノード』、『乗算ノード』など。
-    # 　・『画素ニューロン』：ニューラルネットワークの各層のいわゆる『ノード』を指すものとする。造語である。
-    def forward(self, x):
-        # 誤差逆伝播のために入力値を保持。
-        self.x = x
-
-        # N：ミニバッチサイズ。ミニバッチ1個に含まれる処理対象データの個数。
-        # D：1個のデータ（画素ベクトル）の列方向の個数。本課題であれば1個のデータがD=784個の画素ニューロンから成っている。
-        N = x.shape[0]
-        D = x.shape[1]
-
-        # (step1)各画素ニューロンについての画素値の平均を取る（よって列方向に加算）。D=784個の列方向のベクトルとなる。
-        self.mu = (1.0 / N) * np.sum(x, axis=0)
-
-        # (step2)後で分散を計算するために、各画素ニューロンについて偏差を取る。
-        self.diff = x - self.mu
-
-        # (step3)後で分散を計算するために、各画素ニューロンについて偏差平方を取る。
-        self.diff2 = self.diff ** 2
-
-        # (step4)各画素ニューロンについての分散を計算する。つまり列方向の偏差平方和を取って平均する。よって分散もD=784個の列方向のベクトルとなる。
-        self.var = (1.0 / N) * np.sum(self.diff2, axis=0)
-
-        # (step5)後で正規化するために、各画素ニューロンについての標準偏差を計算する。よって標準偏差もD=784個のベクトルとなる。
-        self.stddev = np.sqrt(self.var)
-
-        # (step6)後で正規化するために、各画素ニューロンについての標準偏差の逆数を計算する。
-        self.invstddev = 1.0 / self.stddev
-
-        # (step7)各画素ニューロンについて正規化。よって正規化後のxもD=784個のベクトルとなる。
-        self.xnormalized = self.diff * self.invstddev
-
-        # (step8)各画素ニューロンについてスケーリング。よってスケーリング後のもD=784個のベクトルとなる。
-        self.xscaled = self.gamma * self.xnormalized
-
-        # (step9)各画素ニューロンについてシフト。よってシフト後のもD=784個のベクトルとなる。
-        xshifted = self.xscaled + self.beta
-
-        # 分かりやすいように変数名を変えただけ。誤差逆伝播には関係なし。
-        out = xshifted
-
-        return out
-
-    def backward(self, dout):
-        N = dout.shape[0]
-        D = dout.shape[1]
-
-        # (逆step9)（加算ノード）各画素ニューロンについてシフト値の逆伝播。doutが逆伝播して来て、ベータ値ベクトルとスケール化x行列との偏微分値に分かれる。
-        dLdBeta = np.sum(dout, axis=0)
-        dLdXscaled = 1 * dout  # ↓次工程に伝わる。
-
-        # (逆step8)（乗算ノード）各画素ニューロンについてスケーリング値の逆伝播。前工程からdLdXscaledが逆伝播して来て、ガンマ値ベクトルと正規化x行列の偏微分値に分かれる。
-        # ただし元のgammaは1次元であるため総和を取る。
-        dLdGamma = np.sum(dLdXscaled * self.xnormalized, axis=0)
-        dLdXnormalized = dLdXscaled * self.gamma  # ↓次工程に伝わる。
-
-        # (逆step7)（乗算ノード）各画素ニューロンについて正規化した値の逆伝播。前工程からdLdXnormalizedが逆伝播して来て、平均ベクトルと標準偏差の逆数ベクトルの偏微分値に分かれる。
-        # ただし元のinvstddevは1次元であるため各画素ニューロンについての総和を取る。
-        dMu = dLdXnormalized * self.invstddev  # (逆step2）の工程に逆伝播するまで出番は無い。
-        dInvstddev = np.sum(dLdXnormalized * self.mu, axis=0)  # ↓次工程に伝わる。
-
-        # (逆step6)（除算ノード）各画素ニューロンについての標準偏差の逆数の逆伝播。前工程からdInvstddevが逆伝播して来て、標準偏差ベクトルの偏微分値に変換される。
-        dLdStddev = dInvstddev * ((-1.0) / (self.stddev**2))  # ↓次工程に伝わる。
-
-        # (逆step5)（平方根ノード）各画素ニューロンについての標準偏差の逆伝播。前工程からdLdStddevが逆伝播して来て、分散ベクトルの偏微分値に変換される。
-        dLdVar = dLdStddev * (1.0 / (2.0 * np.sqrt(self.var + self.eps)))  # ↓次工程に伝わる。
-
-        # (逆step4)（総和ノード。ただし固定値1/Nがかかっている値の総和であることに注意）。前工程からdLdVarが逆伝播して来て、偏差平方の偏微分値に変換される。
-        # ただし、逆伝播してきたdLdVarは1次元に集約されていたので、逆変換によって行列（偏差行列self.diff2）の構造に戻している。
-        dLdDiff2 = dLdVar * (1.0 / N) * np.ones((N, D))  # ↓次工程に伝わる。
-
-        # (逆step3)（2乗ノード）各画素ニューロンについて偏差平方の逆伝播。前工程からdLdDiff2が逆伝播してきて、偏差の偏微分値に変換される。
-        dLdDiff = dLdDiff2 * (2.0 * self.diff)  # ↓次工程に伝わる。
-
-        # (逆step2)（減算ノード＝負の加算ノード）各画素ニューロンについて偏差の逆伝播。前工程からdLdDiff、(逆step7)のdMuが逆伝播して来て、xと平均の偏微分値に変換される。
-        # ただし、このノードには2つの偏微分値が逆伝播して来るので、一旦単純に加えて、1つの逆入力変数にしておく（誤差逆伝播法での定義）。
-        dout_temp = dLdDiff + dMu
-        # xの偏微分値への変換。加算ノードなので1掛けるだけ。
-        # ただし、step2系統のxであることを明確にするために添え字を2を付けているので注意。
-        dLdX2 = dout_temp * 1.0  # ↓step2系統の逆伝播の入力として最後の工程step0に伝わる。
-        # また、元のmuは1次元であるため、各画素ニューロンについての総和を取る。ただし、負の値の加算ノードなので-1を掛けているので注意。
-        dLdMu = (-1.0) * np.sum(dout_temp, axis=0)  # ↓次工程（step1系統の最後の工程）に伝わる。
-
-        # (逆step1)各画素ニューロンについての画素値の平均の逆伝播。前工程からdLdMuが伝播して来て、入力データ行列x
-        # 逆伝播してきたdLdMuは1次元に集約されていたので、逆変換によって行列（入力データ行列self.x）の構造に戻している。
-        # ただし、step1系統のxであることを明確にするために添え字を1を付けているので注意。
-        dLdX1 = dLdMu * (1.0 / N) * np.ones((N, D))
-
-        # 最後に、順伝播の最初に戻ってくる。順伝播の最初にstep1系統とstep2系統に分岐していたので、逆伝播では2つの入力となる。
-        dout = dLdX1 + dLdX2
-
-        return dout
-
 class DropoutParams:
     def __init__(self, input_retain_rate=0.8, hidden_retain_rate=0.5):
         self.input_retain_rate = input_retain_rate
@@ -320,33 +210,262 @@ class Dropout:
         return dout * self.mask
 
 ##################################################
-# 以下、損失関数クラスの実装。
+# バッチ正規化（Algorithm1のみ実装版）
 ##################################################
-class CrossEntropyError:
-    def __init__(self):
-        # logの値をinfにしないための微小値。
-        self.delta = 1.0e-7
+# class BatchNormal_OnlyAlgorithm1:
+#     def __init__(self, gamma=1.0, beta=0.0):
+#         self.gamma = gamma
+#         self.beta = beta
+#         self.eps = 1.0e-8
+#
+#         # 誤差逆伝播のために、順伝播時に算出した値を保持しておくための変数。
+#         self.x = None
+#         self.mu = None
+#         self.diff = None
+#         self.diff2 = None
+#         self.var = None
+#         self.stddev = None
+#         self.invstddev = None
+#         self.xnormalized = None
+#         self.xscaled = None
+#
+#     # 順伝播。
+#     # 入力データxの行方向にはミニバッチサイズ分だけの処理対象データが並んでいるとする。N個とする。
+#     # 入力データxの列方向には784個の各画素値が並んでいるものとする。D個（=784）とする。
+#     # ※なお、「ノード」は紛らわしい用語であるため、以下とする。
+#     # 　・『ノード』：ここでは計算グラフ理論でのノードを指すものとする。『加算ノード』、『乗算ノード』など。
+#     # 　・『画素ニューロン』：ニューラルネットワークの各層のいわゆる『ノード』を指すものとする。造語である。
+#     def forward(self, x):
+#         # 誤差逆伝播のために入力値を保持。
+#         self.x = x
+#
+#         # N：ミニバッチサイズ。ミニバッチ1個に含まれる処理対象データの個数。
+#         # D：1個のデータ（画素ベクトル）の列方向の個数。本課題であれば1個のデータがD=784個の画素ニューロンから成っている。
+#         N = x.shape[0]
+#         D = x.shape[1]
+#
+#         # (step1)各画素ニューロンについての画素値の平均を取る（よって列方向に加算）。D=784個の列方向のベクトルとなる。
+#         self.mu = (1.0 / N) * np.sum(x, axis=0)
+#
+#         # (step2)後で分散を計算するために、各画素ニューロンについて偏差を取る。
+#         self.diff = x - self.mu
+#
+#         # (step3)後で分散を計算するために、各画素ニューロンについて偏差平方を取る。
+#         self.diff2 = self.diff ** 2
+#
+#         # (step4)各画素ニューロンについての分散を計算する。つまり列方向の偏差平方和を取って平均する。よって分散もD=784個の列方向のベクトルとなる。
+#         self.var = (1.0 / N) * np.sum(self.diff2, axis=0)
+#
+#         # (step5)後で正規化するために、各画素ニューロンについての標準偏差を計算する。よって標準偏差もD=784個のベクトルとなる。
+#         self.stddev = np.sqrt(self.var)
+#
+#         # (step6)後で正規化するために、各画素ニューロンについての標準偏差の逆数を計算する。
+#         self.invstddev = 1.0 / self.stddev
+#
+#         # (step7)各画素ニューロンについて正規化。よって正規化後のxもD=784個のベクトルとなる。
+#         self.xnormalized = self.diff * self.invstddev
+#
+#         # (step8)各画素ニューロンについてスケーリング。よってスケーリング後のもD=784個のベクトルとなる。
+#         self.xscaled = self.gamma * self.xnormalized
+#
+#         # (step9)各画素ニューロンについてシフト。よってシフト後のもD=784個のベクトルとなる。
+#         xshifted = self.xscaled + self.beta
+#
+#         # 分かりやすいように変数名を変えただけ。誤差逆伝播には関係なし。
+#         out = xshifted
+#
+#         return out
+#
+#     def backward(self, dout):
+#         N = dout.shape[0]
+#         D = dout.shape[1]
+#
+#         # (逆step9)（加算ノード）各画素ニューロンについてシフト値の逆伝播。doutが逆伝播して来て、ベータ値ベクトルとスケール化x行列との偏微分値に分かれる。
+#         dLdBeta = np.sum(dout, axis=0)
+#         dLdXscaled = 1 * dout  # ↓次工程に伝わる。
+#
+#         # (逆step8)（乗算ノード）各画素ニューロンについてスケーリング値の逆伝播。前工程からdLdXscaledが逆伝播して来て、ガンマ値ベクトルと正規化x行列の偏微分値に分かれる。
+#         # ただし元のgammaは1次元であるため総和を取る。
+#         dLdGamma = np.sum(dLdXscaled * self.xnormalized, axis=0)
+#         dLdXnormalized = dLdXscaled * self.gamma  # ↓次工程に伝わる。
+#
+#         # (逆step7)（乗算ノード）各画素ニューロンについて正規化した値の逆伝播。前工程からdLdXnormalizedが逆伝播して来て、平均ベクトルと標準偏差の逆数ベクトルの偏微分値に分かれる。
+#         # ただし元のinvstddevは1次元であるため各画素ニューロンについての総和を取る。
+#         dMu = dLdXnormalized * self.invstddev  # (逆step2）の工程に逆伝播するまで出番は無い。
+#         dInvstddev = np.sum(dLdXnormalized * self.mu, axis=0)  # ↓次工程に伝わる。
+#
+#         # (逆step6)（除算ノード）各画素ニューロンについての標準偏差の逆数の逆伝播。前工程からdInvstddevが逆伝播して来て、標準偏差ベクトルの偏微分値に変換される。
+#         dLdStddev = dInvstddev * ((-1.0) / (self.stddev**2))  # ↓次工程に伝わる。
+#
+#         # (逆step5)（平方根ノード）各画素ニューロンについての標準偏差の逆伝播。前工程からdLdStddevが逆伝播して来て、分散ベクトルの偏微分値に変換される。
+#         dLdVar = dLdStddev * (1.0 / (2.0 * np.sqrt(self.var + self.eps)))  # ↓次工程に伝わる。
+#
+#         # (逆step4)（総和ノード。ただし固定値1/Nがかかっている値の総和であることに注意）。前工程からdLdVarが逆伝播して来て、偏差平方の偏微分値に変換される。
+#         # ただし、逆伝播してきたdLdVarは1次元に集約されていたので、逆変換によって行列（偏差行列self.diff2）の構造に戻している。
+#         dLdDiff2 = dLdVar * (1.0 / N) * np.ones((N, D))  # ↓次工程に伝わる。
+#
+#         # (逆step3)（2乗ノード）各画素ニューロンについて偏差平方の逆伝播。前工程からdLdDiff2が逆伝播してきて、偏差の偏微分値に変換される。
+#         dLdDiff = dLdDiff2 * (2.0 * self.diff)  # ↓次工程に伝わる。
+#
+#         # (逆step2)（減算ノード＝負の加算ノード）各画素ニューロンについて偏差の逆伝播。前工程からdLdDiff、(逆step7)のdMuが逆伝播して来て、xと平均の偏微分値に変換される。
+#         # ただし、このノードには2つの偏微分値が逆伝播して来るので、一旦単純に加えて、1つの逆入力変数にしておく（誤差逆伝播法での定義）。
+#         dout_temp = dLdDiff + dMu
+#         # xの偏微分値への変換。加算ノードなので1掛けるだけ。
+#         # ただし、step2系統のxであることを明確にするために添え字を2を付けているので注意。
+#         dLdX2 = dout_temp * 1.0  # ↓step2系統の逆伝播の入力として最後の工程step0に伝わる。
+#         # また、元のmuは1次元であるため、各画素ニューロンについての総和を取る。ただし、負の値の加算ノードなので-1を掛けているので注意。
+#         dLdMu = (-1.0) * np.sum(dout_temp, axis=0)  # ↓次工程（step1系統の最後の工程）に伝わる。
+#
+#         # (逆step1)各画素ニューロンについての画素値の平均の逆伝播。前工程からdLdMuが伝播して来て、入力データ行列x
+#         # 逆伝播してきたdLdMuは1次元に集約されていたので、逆変換によって行列（入力データ行列self.x）の構造に戻している。
+#         # ただし、step1系統のxであることを明確にするために添え字を1を付けているので注意。
+#         dLdX1 = dLdMu * (1.0 / N) * np.ones((N, D))
+#
+#         # 最後に、順伝播の最初に戻ってくる。順伝播の最初にstep1系統とstep2系統に分岐していたので、逆伝播では2つの入力となる。
+#         dout = dLdX1 + dLdX2
+#
+#         return dout
 
-    def loss(self, y, t):
-        if y.ndim == 1:
-            y = y.reshape(1, -1)
-            t = t.reshape(1, -1)
+##################################################
+# バッチ正規化（Algorithm1＋Algorithm2）
+##################################################
+class BatchNormalParams:
+    def __init__(self, gamma=1.0, beta=0.0, moving_decay=0.1):
+        self.gamma = gamma
+        self.beta = beta
+        self.moving_decay = moving_decay
 
-        logy = np.log(y + self.delta)
-        E = -1.0 * np.sum(t * logy) / y.shape[0]
-        # E = np.sum(np.diag(-1.0 * np.dot(t, logy.T))) / batch_size  #行列積版。計算量が多いのでボツ。
-        return E
+class BatchNormal:
+    def __init__(self, batch_normal_params):
+        self.gamma = batch_normal_params.gamma
+        self.beta = batch_normal_params.beta
+        self.moving_decay = batch_normal_params.moving_decay
+        self.eps = 1.0e-8
 
-class MeanSquaredError:
-    def __init__(self):
-        pass
+        # 誤差逆伝播のために、順伝播時に算出した値を保持しておくための変数。
+        self.x = None
+        self.mu = None
+        self.diff = None
+        self.diff2 = None
+        self.var = None
+        self.stddev = None
+        self.invstddev = None
+        self.xnormalized = None
+        self.xscaled = None
 
-    def loss(self, y, t):
-        if y.ndim == 1:
-            y = y.reshape(1, -1)
-            t = t.reshape(1, -1)
+        self.moving_iter = 0  # 移動平均の計算個数。ミニバッチ学習ごとに更新。# TODO いつクリアするのか？エポックごとにクリアする必要があるのでは？
+        self.moving_ex = None  #  E[x]の移動平均（xはD個のベクトル）
+        self.moving_varx = None  #  Var[x]の移動平均（xはD個のベクトル）
 
-        diff = y - t
-        E = 0.5 * np.sum(np.sum(diff ** 2)) / y.shape[0]
-        # E = 0.5 * np.sum(np.diag(np.dot(diff, diff.T))) / batch_size  #行列積版。計算量が多いのでボツ。
-        return E
+    def increment_moving_iter(self):
+        self.moving_iter += 1
+
+    def reset_moving_iter(self):
+        self.moving_iter = 0
+
+    # 順伝播。
+    # 入力データxの行方向にはミニバッチサイズ分だけの処理対象データが並んでいるとする。N個とする。
+    # 入力データxの列方向には784個の各画素値が並んでいるものとする。D個（=784）とする。
+    # ※なお、「ノード」は紛らわしい用語であるため、以下とする。
+    # 　・『ノード』：ここでは計算グラフ理論でのノードを指すものとする。『加算ノード』、『乗算ノード』など。
+    # 　・『画素ニューロン』：ニューラルネットワークの各層のいわゆる『ノード』を指すものとする。造語である。
+    def forward(self, x, is_learning=False):
+        # 誤差逆伝播のために入力値を保持。
+        self.x = x
+
+        # N：ミニバッチサイズ。ミニバッチ1個に含まれる処理対象データの個数。
+        # D：1個のデータ（画素ベクトル）の列方向の個数。本課題であれば1個のデータがD=784個の画素ニューロンから成っている。
+        N = x.shape[0]
+        D = x.shape[1]
+
+        if is_learning:
+            # 最初のE[x]とVar[x]の移動平均は0（ベクトル）とする。
+            if self.moving_ex is None:
+                self.moving_ex = np.zeros(D, dtype=np.float32)
+                self.moving_varx = np.zeros(D, dtype=np.float32)
+
+            # (step1)各画素ニューロンについての画素値の平均を取る（よって列方向に加算）。D=784個の列方向のベクトルとなる。
+            self.mu = (1.0 / N) * np.sum(x, axis=0)
+
+            # (step2)後で分散を計算するために、各画素ニューロンについて偏差を取る。
+            self.diff = x - self.mu
+
+            # (step3)後で分散を計算するために、各画素ニューロンについて偏差平方を取る。
+            self.diff2 = self.diff ** 2
+
+            # (step4)各画素ニューロンについての分散を計算する。つまり列方向の偏差平方和を取って平均する。よって分散もD=784個の列方向のベクトルとなる。
+            self.var = (1.0 / N) * np.sum(self.diff2, axis=0)
+
+            # (step5)後で正規化するために、各画素ニューロンについての標準偏差を計算する。よって標準偏差もD=784個のベクトルとなる。
+            self.stddev = np.sqrt(self.var)
+
+            # (step6)後で正規化するために、各画素ニューロンについての標準偏差の逆数を計算する。
+            self.invstddev = 1.0 / (self.stddev + self.eps)
+
+            # (step7)各画素ニューロンについて正規化。よって正規化後のxもD=784個のベクトルとなる。
+            self.xnormalized = self.diff * self.invstddev
+
+            # (step8)各画素ニューロンについてスケーリング。よってスケーリング後のもD=784個のベクトルとなる。
+            self.xscaled = self.gamma * self.xnormalized
+
+            # (step9)各画素ニューロンについてシフト。よってシフト後のもD=784個のベクトルとなる。
+            out = self.xscaled + self.beta
+
+            # 移動平均の更新。
+            self.moving_ex = self.moving_ex * self.moving_decay + (1 - self.moving_decay) * self.mu
+            self.moving_varx = self.moving_varx * self.moving_decay + (1 - self.moving_decay) * (N / np.max([N-1, 1])) * self.var
+
+        else:
+            out = self.gamma * (self.x - self.moving_ex) / np.sqrt(self.moving_varx + self.eps) + self.beta
+
+        return out
+
+    def backward(self, dout):
+        N = dout.shape[0]
+        D = dout.shape[1]
+
+        # (逆step9)（加算ノード）各画素ニューロンについてシフト値の逆伝播。doutが逆伝播して来て、ベータ値ベクトルとスケール化x行列との偏微分値に分かれる。
+        dLdBeta = np.sum(dout, axis=0)
+        dLdXscaled = 1 * dout  # ↓次工程に伝わる。
+
+        # (逆step8)（乗算ノード）各画素ニューロンについてスケーリング値の逆伝播。前工程からdLdXscaledが逆伝播して来て、ガンマ値ベクトルと正規化x行列の偏微分値に分かれる。
+        # ただし元のgammaは1次元であるため総和を取る。
+        dLdGamma = np.sum(dLdXscaled * self.xnormalized, axis=0)
+        dLdXnormalized = dLdXscaled * self.gamma  # ↓次工程に伝わる。
+
+        # (逆step7)（乗算ノード）各画素ニューロンについて正規化した値の逆伝播。前工程からdLdXnormalizedが逆伝播して来て、平均ベクトルと標準偏差の逆数ベクトルの偏微分値に分かれる。
+        # ただし元のinvstddevは1次元であるため各画素ニューロンについての総和を取る。
+        dMu = dLdXnormalized * self.invstddev  # (逆step2）の工程に逆伝播するまで出番は無い。
+        dInvstddev = np.sum(dLdXnormalized * self.mu, axis=0)  # ↓次工程に伝わる。
+
+        # (逆step6)（除算ノード）各画素ニューロンについての標準偏差の逆数の逆伝播。前工程からdInvstddevが逆伝播して来て、標準偏差ベクトルの偏微分値に変換される。
+        dLdStddev = dInvstddev * (-1.0) / (self.stddev**2 + self.eps)  # ↓次工程に伝わる。
+
+        # (逆step5)（平方根ノード）各画素ニューロンについての標準偏差の逆伝播。前工程からdLdStddevが逆伝播して来て、分散ベクトルの偏微分値に変換される。
+        dLdVar = dLdStddev * 0.5 * np.sqrt(self.var + self.eps)  # ↓次工程に伝わる。
+
+        # (逆step4)（総和ノード。ただし固定値1/Nがかかっている値の総和であることに注意）。前工程からdLdVarが逆伝播して来て、偏差平方の偏微分値に変換される。
+        # ただし、逆伝播してきたdLdVarは1次元に集約されていたので、逆変換によって行列（偏差行列self.diff2）の構造に戻している。
+        dLdDiff2 = dLdVar * (1.0 / N) * np.ones((N, D))  # ↓次工程に伝わる。
+
+        # (逆step3)（2乗ノード）各画素ニューロンについて偏差平方の逆伝播。前工程からdLdDiff2が逆伝播してきて、偏差の偏微分値に変換される。
+        dLdDiff = dLdDiff2 * 2.0 * self.diff  # ↓次工程に伝わる。
+
+        # (逆step2)（減算ノード＝負の加算ノード）各画素ニューロンについて偏差の逆伝播。前工程からdLdDiff、(逆step7)のdMuが逆伝播して来て、xと平均の偏微分値に変換される。
+        # ただし、このノードには2つの偏微分値が逆伝播して来るので、一旦単純に加えて、1つの逆入力変数にしておく（誤差逆伝播法での定義）。
+        dout_temp = dLdDiff + dMu
+        # xの偏微分値への変換。加算ノードなので1掛けるだけ。
+        # ただし、step2系統のxであることを明確にするために添え字を2を付けているので注意。
+        dLdX2 = dout_temp * 1.0  # ↓step2系統の逆伝播の入力として最後の工程step0に伝わる。
+        # また、元のmuは1次元であるため、各画素ニューロンについての総和を取る。ただし、負の値の加算ノードなので-1を掛けているので注意。
+        dLdMu = (-1.0) * np.sum(dout_temp, axis=0)  # ↓次工程（step1系統の最後の工程）に伝わる。
+
+        # (逆step1)各画素ニューロンについての画素値の平均の逆伝播。前工程からdLdMuが伝播して来て、入力データ行列x
+        # 逆伝播してきたdLdMuは1次元に集約されていたので、逆変換によって行列（入力データ行列self.x）の構造に戻している。
+        # ただし、step1系統のxであることを明確にするために添え字を1を付けているので注意。
+        dLdX1 = dLdMu * (1.0 / N) * np.ones((N, D))
+
+        # 最後に、順伝播の最初に戻ってくる。順伝播の最初にstep1系統とstep2系統に分岐していたので、逆伝播では2つの入力となる。
+        dout = dLdX1 + dLdX2
+
+        return dout

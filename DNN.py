@@ -1,13 +1,10 @@
 import numpy as np
-from LearnedModel import LearnedModel
-from layers import HiddenLayer, LastLayer, Sigmoid, Tanh, ReLU, BatchNormal, SoftmaxWithLoss, CrossEntropyError, Dropout
+from layers import HiddenLayer, LastLayer, Sigmoid, Tanh, ReLU, BatchNormal, SoftmaxWithLoss, Dropout
+from losses import CrossEntropyError
 from learners import MiniBatch, KFoldCrossValidation
 from optimizers import SGD
-import pickle
 
 class DNN:
-    savepath = "./DNN.pkl"
-
     def __init__(self,
                  input_size=784,
                  layer_size_list=[100, 5],
@@ -15,38 +12,33 @@ class DNN:
                  output_actfunc=SoftmaxWithLoss(),
                  loss_func=CrossEntropyError(),
                  init_weight_stddev=0.01,
-                 learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01), is_numerical_gradient=False),
-                 init_weight_change=False,  # 重みの初期値について実験
-                 batch_normal=None,  # バッチ正規化について実験
-                 regularization=None,  # 正則化について実験
-                 dropout_params=None,  # ドロップアウトについて実験
-                 early_stopping_params=None  # 早期終了
+                 init_weight_change=False,  # 重みの初期値変更
+                 learner=None,
+                 regularization=None,  # 正則化
+                 dropout_params=None,  # ドロップアウト
+                 early_stopping_params=None,  # 早期終了
+                 batch_normal_params=None  # バッチ正規化
                  ):
 
-        # LearnedModelとして保存したい引数の保持。
-        self.lm = LearnedModel()
-        self.lm.input_size = input_size
-        self.lm.layer_size_list = layer_size_list
-        self.lm.init_weight_stddev = init_weight_stddev
-        self.lm.epoch_num = learner.epoch_num if hasattr(learner, 'epoch_num') else None
-        self.lm.mini_batch_size = learner.mini_batch_size if hasattr(learner, 'mini_batch_size') else None
-        self.lm.learning_rate = learner.optimizer.learning_rate if hasattr(learner.optimizer, 'learning_rate') else 0.01
-        self.lm.W = None
-        self.lm.B = None
-
-        # 以下保存対象外。
-        # TODO 保存対象にした方がよいのでは？保存pklファイルを見てもどのような条件だったのか分からなくなる（保存した条件しか分からない）ので。
+        # 保存対象。
+        self.input_size = input_size
+        self.layer_size_list = layer_size_list
         self.hidden_actfunc = hidden_actfunc
         self.output_actfunc = output_actfunc
-        self.layers = None
         self.loss_func = loss_func
-        self.learner = learner
-        self.learner.set_NN(self)
+        self.init_weight_stddev = init_weight_stddev
         self.init_weight_change = init_weight_change
-        self.batch_normal = batch_normal
+        self.learner = learner
         self.regularization = regularization
         self.dropout_params = dropout_params
         self.early_stopping_params = early_stopping_params
+        self.batch_normal_params = batch_normal_params
+
+        # 以下保存対象外。
+        self.layers = None
+        self.W = None
+        self.B = None
+        self.learner.set_NN(self)
 
         # TODO debug 提出時はNoneにすること。
         self.act_dist = None
@@ -55,13 +47,13 @@ class DNN:
     def init_weight(self):
         # TODO debug デバッグしやすさのため、再現性があるように指定。
         np.random.seed(1)
-        self.lm.W = []  # 各層の重み配列。要素のインデックスは、層のインデックスと一致。
-        self.lm.B = []  # 各層のバイアス配列。要素のインデックスは、層のインデックスと一致。
-        prev_size = self.lm.input_size
+        self.W = []  # 各層の重み配列。要素のインデックスは、層のインデックスと一致。
+        self.B = []  # 各層のバイアス配列。要素のインデックスは、層のインデックスと一致。
+        prev_size = self.input_size
 
-        for i, crnt_size in enumerate(self.lm.layer_size_list):
+        for i, crnt_size in enumerate(self.layer_size_list):
             # デフォルトでは指定された標準偏差を使う。
-            stddev = self.lm.init_weight_stddev
+            stddev = self.init_weight_stddev
             if self.init_weight_change:
                 # print("★self.init_weight_changeが指定されました。", self.init_weight_change)
                 if (self.hidden_actfunc.__class__ == Sigmoid) | (self.hidden_actfunc.__class__ == Tanh):
@@ -72,33 +64,34 @@ class DNN:
                     stddev = np.sqrt(2.0 / prev_size)
                 else:
                     # print("★活性化関数がSigmoid、Tanh、ReLU以外です。：self.hidden_actfunc.__class__=", self.hidden_actfunc.__class__)
-                    # print("★標準偏差{0}の標準正規分布からの無作為抽出を行います。".format(self.lm.init_weight_stddev))
+                    # print("★標準偏差{0}の標準正規分布からの無作為抽出を行います。".format(self.init_weight_stddev))
                     pass
             else:
                 #print("★self.init_weight_changeが指定されませんでした。", self.init_weight_change)
-                #print("★標準偏差{0}の標準正規分布からの無作為抽出を行います。".format(self.lm.init_weight_stddev))
+                #print("★標準偏差{0}の標準正規分布からの無作為抽出を行います。".format(self.init_weight_stddev))
                 pass
 
-            self.lm.W.append(np.random.randn(prev_size, crnt_size) * stddev)
-            self.lm.B.append(np.zeros(crnt_size))
+            self.W.append(np.random.randn(prev_size, crnt_size) * stddev)
+            self.B.append(np.zeros(crnt_size))
             prev_size = crnt_size
 
     def init_layers(self):
         self.layers = []
-        last_index = len(self.lm.layer_size_list) - 1
-        for i, layer_size in enumerate(self.lm.layer_size_list):
+        last_index = len(self.layer_size_list) - 1
+        for i, layer_size in enumerate(self.layer_size_list):
             input_dropout = None
             hidden_dropout = None
             if self.dropout_params is not None:
                 input_dropout = Dropout(retain_rate=self.dropout_params.input_retain_rate)
                 hidden_dropout = Dropout(retain_rate=self.dropout_params.hidden_retain_rate)
 
+            # ドロップアウト対応。入力層、隠れ層のドロップアウトの組み合わせがあるので分岐。
             if i == 0:
-                layer = HiddenLayer(self.lm.W[i], self.lm.B[i], self.hidden_actfunc, self.batch_normal, input_dropout=input_dropout, hidden_dropout=hidden_dropout)
+                layer = HiddenLayer(self.W[i], self.B[i], self.hidden_actfunc, self.batch_normal_params, input_dropout=input_dropout, hidden_dropout=hidden_dropout)
             elif i != last_index:
-                layer = HiddenLayer(self.lm.W[i], self.lm.B[i], self.hidden_actfunc, self.batch_normal, input_dropout=None, hidden_dropout=hidden_dropout)
+                layer = HiddenLayer(self.W[i], self.B[i], self.hidden_actfunc, self.batch_normal_params, input_dropout=None, hidden_dropout=hidden_dropout)
             else:
-                layer = LastLayer(self.lm.W[i], self.lm.B[i], self.output_actfunc)
+                layer = LastLayer(self.W[i], self.B[i], self.output_actfunc)
             self.layers.append(layer)
 
     def fit(self, train_data, train_label):
@@ -148,28 +141,20 @@ class DNN:
 
         return y, loss, accuracy
 
-    # TODO 呼ばれてないので不要では？
-    # def loss(self, x, t):
-    #     y, loss, accuracy = self.predict(x, t)
-    #     return loss
-
-    # 保存された学習済みモデルをロードして予測を行う。
-    def predict_with_learned_model(self, model_path, x, t):
-        # 学習済みモデル（重み、バイアス）のロード。
-        self.lm = LearnedModel().load(model_path)
-
-        # 学習済みモデルを使ってレイヤーを初期化。
-        self.init_layers()
-
-        return self.predict(x, t, is_learning=False)
+    # # 保存された学習済みモデルをロードして予測を行う。
+    # def predict_with_learned_model(self, model_path, x, t):
+    #     # 学習済みモデル（重み、バイアス）のロード。
+    #     self.lm = LearnedModel().load(model_path)
+    #
+    #     # 学習済みモデルを使ってレイヤーを初期化。
+    #     self.init_layers()
+    #
+    #     return self.predict(x, t, is_learning=False)
 
     def accuracy(self, y, t):
         y = np.argmax(y, axis=1)
         t = np.argmax(t, axis=1)
         return np.sum(y == t) / y.shape[0]
-
-    def save(self):
-        self.lm.save(DNN.savepath)
 
     # 数値微分。勾配確認（誤差逆伝播法での微分値との比較）のために使用。
     def numerical_gradient(self, x, t):
@@ -203,6 +188,20 @@ class DNN:
             it.iternext()
 
         return grad
+
+    def increment_batch_normal_moving_iter(self):
+        if self.batch_normal_params is not None:
+            for layer in self.layers:
+                if hasattr(layer, "batch_normal"):
+                    if layer.batch_normal is not None:
+                        layer.batch_normal.increment_moving_iter()
+
+    def reset_batch_normal_moving_iter(self):
+        if self.batch_normal_params is not None:
+            for layer in self.layers:
+                if hasattr(layer, "batch_normal"):
+                    if layer.batch_normal is not None:
+                        layer.batch_normal.reset_moving_iter()
 
 # TODO debug用：アクティベーション分布を保存するクラス。
 class ActivationDistribution:
