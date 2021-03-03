@@ -252,7 +252,8 @@ class NNExecutor:
         #               )
 
         # ##################################################
-        # Day4までの講義内容を実装した中で最も性能が良かったモデルについて、重みの初期値を変えてみたらどうなるか？
+        # 実験25（Day4までの講義内容を実装した中で最も性能が良かったモデル）について、
+        # 重みの初期値を変えてみたらどうなるか？
         # ##################################################
         # ●k分割交差検証で最も良かったモデル：Kfold-Tanh-AdaDelta
         # 3層
@@ -1059,18 +1060,89 @@ class NNExecutor:
         #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)),
         #               batch_normal_params=BatchNormalParams(gamma=5.0, beta=0.5, moving_decay=0.9)
         #               )
-
+        # ------------------------------
         # k分割での最良モデル『KFold-Tanh-AdaDelta』でバッチ正規化をやってみる。
         #   gamma=5.0, beta=0.5, moving_decay=0.9：★Avg.l_loss=0.0062, Avg.l_accuracy=0.9979, Max.l_accuracy=0.9990, l_argmax=9 | Avg.v_loss=0.0051, Avg.v_accuracy=0.9980, Max.v_accuracy=1.0000, v_argmax=0
         #   ↑ミニバッチのときと比べてさらに損失が低い。
+        # ------------------------------
+        # model = DNN(input_size=784,
+        #             layer_size_list=[100, 100, 5],
+        #             hidden_actfunc=Tanh(),
+        #             output_actfunc=SoftmaxWithLoss(),
+        #             loss_func=CrossEntropyError(),
+        #             init_weight_stddev=0.01,
+        #             learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
+        #             batch_normal_params=BatchNormalParams(gamma=5.0, beta=0.5, moving_decay=0.9)
+        #             )
+        #
+        # ノード数を増やすと？
+        #   gamma=5.0, beta=0.5, moving_decay=0.9：★Avg.l_loss=0.0092, Avg.l_accuracy=0.9985, Max.l_accuracy=0.9990, l_argmax=6 | Avg.v_loss=0.0106, Avg.v_accuracy=0.9980, Max.v_accuracy=1.0000, v_argmax=1
+        # model = DNN(input_size=784,
+        #             layer_size_list=[200, 200, 5],
+        #             hidden_actfunc=Tanh(),
+        #             output_actfunc=SoftmaxWithLoss(),
+        #             loss_func=CrossEntropyError(),
+        #             init_weight_stddev=0.01,
+        #             learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
+        #             batch_normal_params=BatchNormalParams(gamma=5.0, beta=0.5, moving_decay=0.9)
+        #             )
+        #
+        # 5層ではどうか？：★Avg.l_loss=0.0447, Avg.l_accuracy=0.9899, Max.l_accuracy=0.9949, l_argmax=80 | Avg.v_loss=0.0319, Avg.v_accuracy=0.9900, Max.v_accuracy=1.0000, v_argmax=0
+        # 5層＋ノード数200：★Avg.l_loss=0.0089, Avg.l_accuracy=0.9976, Max.l_accuracy=1.0000, l_argmax=31 | Avg.v_loss=0.0063, Avg.v_accuracy=0.9990, Max.v_accuracy=1.0000, v_argmax=0
+        # model = DNN(input_size=784,
+        #             layer_size_list=[200, 200, 200, 200, 5],
+        #             #layer_size_list=[100, 100, 100, 100, 5],
+        #             hidden_actfunc=Tanh(),
+        #             output_actfunc=SoftmaxWithLoss(),
+        #             loss_func=CrossEntropyError(),
+        #             init_weight_stddev=0.01,
+        #             learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
+        #             batch_normal_params=BatchNormalParams(gamma=5.0, beta=0.5, moving_decay=0.9)
+        #             )
+
+        # ------------------------------
+        # あまり性能が良くなかったモデルを、正規化で実行してみる。
+        # ------------------------------
+        # 正規化無し：★Avg.l_loss=0.3680, Avg.l_accuracy=0.8615, Max.l_accuracy=1.0000, l_argmax=71 | Avg.v_loss=0.4619, Avg.v_accuracy=0.8279, Max.v_accuracy=0.9600, v_argmax=57
+        # 正規化あり：★Avg.l_loss=0.0416, Avg.l_accuracy=0.9874, Max.l_accuracy=1.0000, l_argmax=12 | Avg.v_loss=0.1593, Avg.v_accuracy=0.9554, Max.v_accuracy=0.9800, v_argmax=10
+        # model = DNN(input_size=784,
+        #             layer_size_list=[100, 100, 5],
+        #             hidden_actfunc=ReLU(),
+        #             output_actfunc=SoftmaxWithLoss(),
+        #             loss_func=CrossEntropyError(),
+        #             learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01)),
+        #             batch_normal_params=BatchNormalParams(gamma=5.0, beta=0.5, moving_decay=0.9)
+        #             )
+
+        # ------------------------------
+        # グラフ化用
+        # ------------------------------
+        # 実験No.17：★Avg.l_loss=0.0014, Avg.l_accuracy=0.9998, Max.l_accuracy=1.0000, l_argmax=4 | Avg.v_loss=0.1199, Avg.v_accuracy=0.9653, Max.v_accuracy=0.9700, v_argmax=0
+        # 実験No.17'-A（重み初期値）：★Avg.l_loss=0.0010, Avg.l_accuracy=0.9999, Max.l_accuracy=1.0000, l_argmax=3 | Avg.v_loss=0.1277, Avg.v_accuracy=0.9646, Max.v_accuracy=0.9650, v_argmax=0
+        # 実験No.17'-E（バッチ正規化）：★Avg.l_loss=0.0041, Avg.l_accuracy=0.9995, Max.l_accuracy=1.0000, l_argmax=13 | Avg.v_loss=0.0995, Avg.v_accuracy=0.9696, Max.v_accuracy=0.9850, v_argmax=36
+        # model = DNN(input_size=784,
+        #             layer_size_list=[100, 100, 5],
+        #             hidden_actfunc=ReLU(),
+        #             output_actfunc=SoftmaxWithLoss(),
+        #             loss_func=CrossEntropyError(),
+        #             init_weight_stddev=0.01,
+        #             #init_weight_change=True,  # 実験No.17'-A
+        #             learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)),
+        #             batch_normal_params=BatchNormalParams(gamma=5.0, beta=0.5, moving_decay=0.9)  # 実験No.17'-E
+        #             )
+
+        # 実験25について、k分割交差検証のkを減らして提出してみる。
+        # ●k分割交差検証で最も良かったモデル：Kfold-Tanh-AdaDelta
+        # 3層
+        #   ★kfold_num=100: Avg.Loss=0.001, Avg.Accuracy=1.000, Max.Accuracy=1.000, Argmax=0
         model = DNN(input_size=784,
-                    layer_size_list=[100, 100, 5],
-                    hidden_actfunc=Tanh(),
-                    output_actfunc=SoftmaxWithLoss(),
-                    loss_func=CrossEntropyError(),
-                    init_weight_stddev=0.01,
-                    learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
-                    batch_normal_params=BatchNormalParams(gamma=5.0, beta=0.5, moving_decay=0.9)
-                    )
+                      layer_size_list=[100, 100, 5],
+                      hidden_actfunc=Tanh(),
+                      output_actfunc=SoftmaxWithLoss(),
+                      loss_func=CrossEntropyError(),
+                      init_weight_stddev=0.01,
+                      #learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9))
+                      learner=KFoldCrossValidation(kfold_num=10, optimizer=AdaDelta(decay_rate=0.9))
+                      )
 
         return model
