@@ -1,19 +1,9 @@
 import numpy as np
 from DNN import DNN
-from layers import Sigmoid, Tanh, ReLU, SoftmaxWithLoss, CrossEntropyError
+from layers import Sigmoid, Tanh, ReLU, SoftmaxWithLoss, CrossEntropyError, BatchNormal
 from learners import MiniBatch, KFoldCrossValidation
 from optimizers import SGD, Momentum, AdaGrad, AdaDelta, RMSProp, Adam, NAG
 
-# 2018/07/21提出時点での最適組み合わせ：
-# ・レイヤー数：3層
-# ・隠れ層の活性化関数：ReLU
-# ・出力層の活性化関数：ソフトマックス関数
-# ・学習ロジック：k分割交差検証
-#
-# 以下固定
-# ・損失関数：クロスエントロピー誤差関数
-# ・初期重み標準偏差：0.01
-# ・学習率：0.01
 class NNExecutor:
     def __init__(self):
         ##################################################
@@ -194,6 +184,40 @@ class NNExecutor:
         #               loss_func=CrossEntropyError(),
         #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01)),
         #               init_weight_change=True   # 今回新たに実装。
+        #               )
+
+        ##############################
+        # 重みの初期値変更に関して、アクティベーション分布を見てみた。
+        ##############################
+        # 5層／ReLU／初期値変更なし、ありを2通り実施（比較のため）／層間での違いだけを見たいのでエポック数1とする。
+        # ※『./act_dist.pkl』ファイルに出力される。DNNクラスのpredictメソッド参照。
+        # ★Avg.loss=1.609, Avg.accuracy=0.209, Max.accuracy=0.209, Argmax=0 | Avg.test_loss=1.613, Avg.test_accuracy=0.165, Max.test_accuracy=0.165, Argmax=0
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 100, 100, 5],
+        #               hidden_actfunc=ReLU(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=1, mini_batch_size=10, optimizer=SGD(learning_rate=0.01)),
+        #               init_weight_change=True
+        #               )
+
+        ##############################
+        # （変遷７）以下、バッチ正規化（Batch Normalization）を試す。
+        ##############################
+        # 元の問題点：『（変遷４－４）ReLUで5層にしてみた。』にて、学習が全く進まない。
+        # 元の実行結果：★Avg.loss=1.609, Avg.accuracy=0.209, Max.accuracy=0.209, Argmax=0 | Avg.test_loss=1.613, Avg.test_accuracy=0.165, Max.test_accuracy=0.165, Argmax=0
+        # ↓
+        # BNでの実行結果：★Avg.loss=0.168, Avg.accuracy=0.958, Max.accuracy=0.990, Argmax=7 | Avg.test_loss=0.189, Avg.test_accuracy=0.949, Max.test_accuracy=0.975, Argmax=11
+        # ⇒重みの初期値の変更をしなくても性能が改善した。
+        # ⇒ただし、『（変遷６－３）ReLUの場合に『Heの初期値』を使用。』と検証データでの性能同士を比較した場合は、主みの初期値の変更の方がよい。
+        # ⇒過学習が抑制されたからか？
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 100, 100, 5],
+        #               hidden_actfunc=ReLU(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01)),
+        #               batch_normal=BatchNormal(gamma=1.0, beta=0.0)
         #               )
 
         ##############################
@@ -648,10 +672,33 @@ class NNExecutor:
         #               init_weight_stddev=0.01,
         #               learner=KFoldCrossValidation(kfold_num=100, optimizer=NAG(learning_rate=0.01, decay_rate=0.9)))
 
-        # ★★★では、Day4までの講義内容を実装した中で最も性能が良かったモデルについて、重みの初期値を変えてみたらどうなるか？
+        # ##################################################
+        # Day4までの講義内容を実装した中で最も性能が良かったモデルについて、重みの初期値を変えてみたらどうなるか？
+        # ##################################################
+        # ●k分割交差検証で最も良かったモデル：Kfold-Tanh-AdaDelta
         # 5層に増やした／init_weight_change=Trueを指定。
         # （元の実験）★kfold_num = 100: Avg.Loss = 0.001, Avg.Accuracy = 1.000, Max.Accuracy = 1.000, Argmax = 0
         # （初期値変更版）★kfold_num=100: Avg.Loss=0.000, Avg.Accuracy=1.000, Max.Accuracy=1.000, Argmax=0
+        #
+        # ★★★以下、スキルアップAI様保有のテストデータでの性能結果が97%を超過したことを示す通知メール。
+        # --------------------------------------------------
+        # カタカナ5文字識別器 識別精度算出結果
+        # submit@skillupai.com
+        #
+        # To 自分, submit
+        # 島本達也 様
+        #
+        # ご提出ありがとうございます.
+        # 実行結果をご連絡致します.
+        #
+        # 講座名:dl_tokyo_2
+        # ファイル名:dl_tokyo_2_submit_katakana_SHIMAMOTO_TATSUYA_20180726.zip
+        # Test loss:0.1751423330705909
+        # Test accuracy:0.9735384615384616
+        #
+        # スキルアップAI 運営事務局
+        # submit@skillupai.com
+        # --------------------------------------------------
         # self.nn = DNN(input_size=784,
         #               layer_size_list=[100, 100, 100, 100, 5],
         #               hidden_actfunc=Tanh(),
@@ -662,18 +709,65 @@ class NNExecutor:
         #               init_weight_change=True
         #               )
 
-        # Day4で、ミニバッチ学習で最良のモデル
+        # ●Day4までの講義内容で、ミニバッチ学習のうち最良のモデル：Minibatch-ReLU-AdaGrad
         # 初期値変更あり・なしをやってみた。5層に増やしたので注意。
         # （元の結果）★Avg.loss=0.001, Avg.accuracy=1.000, Max.accuracy=1.000, Argmax=4 | Avg.test_loss=0.120, Avg.test_accuracy=0.965, Max.test_accuracy=0.970, Argmax=0
         # （初期値変更なし）★Avg.loss=0.091, Avg.accuracy=0.957, Max.accuracy=1.000, Argmax=59 | Avg.test_loss=0.223, Avg.test_accuracy=0.934, Max.test_accuracy=0.985, Argmax=59
         # （初期値変更あり）★Avg.loss=0.002, Avg.accuracy=1.000, Max.accuracy=1.000, Argmax=5 | Avg.test_loss=0.126, Avg.test_accuracy=0.982, Max.test_accuracy=0.985, Argmax=2
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 100, 100, 5],
+        #               hidden_actfunc=ReLU(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)),
+        #               init_weight_change=True
+        #               )
+
+        # ##################################################
+        # バッチ正規化（Algorithm1の実験）（arXiv:1502.03167v3参照）
+        # ##################################################
+        # 次に、Day4までの講義内容を実装した中で、
+        # ミニバッチ学習を採用したモデルで最も性能が良かったモデル『Minibatch-ReLU-AdaGrad』について、
+        # バッチ正規化を実施してみたらどうなるか？過学習は抑制されるか？
+        # （元の結果）★Avg.loss=0.001, Avg.accuracy=1.000, Max.accuracy=1.000, Argmax=4 | Avg.test_loss=0.120, Avg.test_accuracy=0.965, Max.test_accuracy=0.970, Argmax=0
+        # ↓
+        # ●γ＝1.0、β＝0.0
+        #   ★Avg.loss=0.158, Avg.accuracy=0.966, Max.accuracy=0.981, Argmax=21 | Avg.test_loss=0.195, Avg.test_accuracy=0.950, Max.test_accuracy=0.970, Argmax=17
+        #   ⇒多少損失が大きくなった。
+        # ●γ＝0.1、β＝0.0
+        #   ★Avg.loss=0.671, Avg.accuracy=0.697, Max.accuracy=0.786, Argmax=99 | Avg.test_loss=0.719, Avg.test_accuracy=0.671, Max.test_accuracy=0.785, Argmax=99
+        #   ⇒γを小さくすると、損失が増加した。学習不足。
+        # ●γ＝10.0、β＝0.0
+        #   ★Avg.loss=0.025, Avg.accuracy=0.994, Max.accuracy=1.000, Argmax=96 | Avg.test_loss=0.064, Avg.test_accuracy=0.985, Max.test_accuracy=0.990, Argmax=15
+        #   ⇒γを大きくすると、損失が大きく減少した。過学習を引き起こすらしい。
+        # 〇γ＝1.0、β＝0.5
+        #   ★Avg.loss=0.056, Avg.accuracy=0.990, Max.accuracy=0.994, Argmax=15 | Avg.test_loss=0.098, Avg.test_accuracy=0.977, Max.test_accuracy=0.985, Argmax=14
+        #   ⇒ReLUの場合、x=0.5が中心となるためなのか、割と良い結果となった。
+        # 〇γ＝1.0、β＝1.0
+        #   ★Avg.loss=0.030, Avg.accuracy=0.993, Max.accuracy=0.996, Argmax=23 | Avg.test_loss=0.071, Avg.test_accuracy=0.980, Max.test_accuracy=0.990, Argmax=84
+        # 〇γ＝1.0、β＝10.0
+        #   ★Avg.loss=0.890, Avg.accuracy=0.685, Max.accuracy=0.792, Argmax=99 | Avg.test_loss=0.899, Avg.test_accuracy=0.679, Max.test_accuracy=0.800, Argmax=45
+        #   ⇒βを増やすと、分布の平均0からのずれが大きくなるので0の方が良いのでは？
+        # ▲γ＝2.5、β＝0.5
+        #   ★Avg.loss=0.035, Avg.accuracy=0.993, Max.accuracy=0.996, Argmax=21 | Avg.test_loss=0.065, Avg.test_accuracy=0.983, Max.test_accuracy=0.990, Argmax=21
+        # ▲γ＝5.0、β＝0.5
+        #   ★Avg.loss=0.026, Avg.accuracy=0.994, Max.accuracy=0.998, Argmax=29 | Avg.test_loss=0.078, Avg.test_accuracy=0.981, Max.test_accuracy=0.985, Argmax=1
+        # ▲γ＝10.0、β＝0.5
+        #   ★Avg.loss=0.019, Avg.accuracy=0.996, Max.accuracy=1.000, Argmax=39 | Avg.test_loss=0.059, Avg.test_accuracy=0.985, Max.test_accuracy=0.990, Argmax=2
+        #   ⇒γ＝10.0、β＝0.5は、平均損失がDay4のときのちょうど半分程度になった。
+        #
+        # ＜Tanhにした場合＞
+        # ●γ＝10.0、β＝0.0
+        #   ★Avg.loss=0.052, Avg.accuracy=0.988, Max.accuracy=0.998, Argmax=95 | Avg.test_loss=0.082, Avg.test_accuracy=0.980, Max.test_accuracy=0.995, Argmax=36
+        # ▲γ＝10.0、β＝0.5
+        #   ★Avg.loss=0.050, Avg.accuracy=0.987, Max.accuracy=0.998, Argmax=82 | Avg.test_loss=0.104, Avg.test_accuracy=0.973, Max.test_accuracy=0.985, Argmax=31
         self.nn = DNN(input_size=784,
                       layer_size_list=[100, 100, 100, 100, 5],
                       hidden_actfunc=ReLU(),
                       output_actfunc=SoftmaxWithLoss(),
                       loss_func=CrossEntropyError(),
                       learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)),
-                      init_weight_change=True
+                      batch_normal=BatchNormal(gamma=10.0, beta=0.5)
                       )
 
     def fit(self, train_data, train_label):

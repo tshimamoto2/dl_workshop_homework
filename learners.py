@@ -55,11 +55,13 @@ class MiniBatch:
                 # 重みの更新。
                 self.optimizer.update(self.nn)
 
-            # エポックごとの精度を表示。ただし、訓練データを元に算出。
+            # エポックごとの精度を表示。
+            # 訓練データを元に算出した性能（損失値と正解率）。
             y, loss, accuracy = self.nn.predict(train_data, train_label)
             loss_list.append(loss)
             accuracy_list.append(accuracy)
 
+            # 検証データを元に算出した性能（損失値と正解率）。
             test_y, test_loss, test_accuracy = self.nn.predict(test_data, test_label)
             test_loss_list.append(test_loss)
             test_accuracy_list.append(test_accuracy)

@@ -1,8 +1,9 @@
 import numpy as np
 from LearnedModel import LearnedModel
-from layers import HiddenLayer, LastLayer, Sigmoid, Tanh, ReLU, SoftmaxWithLoss, CrossEntropyError
+from layers import HiddenLayer, LastLayer, Sigmoid, Tanh, ReLU, BatchNormal, SoftmaxWithLoss, CrossEntropyError
 from learners import MiniBatch, KFoldCrossValidation
 from optimizers import SGD
+import pickle
 
 class DNN:
     savepath = "./DNN.pkl"
@@ -15,8 +16,8 @@ class DNN:
                  loss_func=CrossEntropyError(),
                  init_weight_stddev=0.01,
                  learner=MiniBatch(epoch_num=100, mini_batch_size=100, optimizer=SGD(learning_rate=0.01), is_numerical_gradient=False),
-                 # 重みの初期値について実験
-                 init_weight_change=False
+                 init_weight_change=False,  # 重みの初期値について実験
+                 batch_normal=None  # バッチ正規化について実験
                  ):
 
         # LearnedModelとして保存したい引数の保持。
@@ -31,6 +32,7 @@ class DNN:
         self.lm.B = None
 
         # 以下保存対象外。
+        # TODO 保存対象にした方がよいのでは？保存pklファイルを見てもどのような条件だったのか分からなくなる（保存した条件しか分からない）ので。
         self.hidden_actfunc = hidden_actfunc
         self.output_actfunc = output_actfunc
         self.layers = None
@@ -38,6 +40,10 @@ class DNN:
         self.learner = learner
         self.learner.set_NN(self)
         self.init_weight_change = init_weight_change
+        self.batch_normal = batch_normal
+
+        # TODO debug
+        # self.act_dist_already_saved = False
 
     def init_weight(self):
         # TODO debug デバッグしやすさのため、再現性があるように指定。
@@ -75,7 +81,7 @@ class DNN:
         last_index = len(self.lm.layer_size_list) - 1
         for i, layer_size in enumerate(self.lm.layer_size_list):
             if (i != last_index):
-                layer = HiddenLayer(self.lm.W[i], self.lm.B[i], self.hidden_actfunc)
+                layer = HiddenLayer(self.lm.W[i], self.lm.B[i], self.hidden_actfunc, self.batch_normal)
             else:
                 layer = LastLayer(self.lm.W[i], self.lm.B[i], self.output_actfunc)
             self.layers.append(layer)
@@ -122,10 +128,23 @@ class DNN:
     # 順伝播による出力層、損失、精度の算出。
     # 学習済みモデル、学習済みレイヤーが決まっていることが前提。
     def predict(self, x, t):
+        # TODO debug アクティベーション分布
+        # act_dist = {}
+
         # 順伝播。
         z = x
-        for layer in self.layers:
-            z = layer.forward(z, t)  # 内部でアフィン変換と活性化関数による変換を行う。
+        for i, layer in enumerate(self.layers):
+            z = layer.forward(z, t)
+
+            # TODO debug これを入れるとスキルアップAI様への提出時に実行エラーとなるのでコメントアウト。
+            # act_dist["layer" + str(i)] = layer.act_dist
+
+        # TODO debug これを入れるとスキルアップAI様への提出時に実行エラーとなるのでコメントアウト。
+        # アクティベーション分布を見るために、アフィン変換の値を保存。predictはいろんなメソッドから呼ばれるので1回だけ。
+        # if self.act_dist_already_saved == False:
+        #     with open("./act_dist.pkl", 'wb') as f:
+        #         pickle.dump(act_dist, f)
+        #     self.act_dist_already_saved = True
 
         # 教材での説明と変数名を合わせただけ。
         y = z
@@ -158,6 +177,7 @@ class DNN:
     def save(self):
         self.lm.save(DNN.savepath)
 
+    # 数値微分。勾配確認（誤差逆伝播法での微分値との比較）のために使用。
     def numerical_gradient(self, x, t):
         def f(W):
             return self.loss(x, t)
