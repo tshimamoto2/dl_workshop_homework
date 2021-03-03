@@ -279,15 +279,15 @@ class NNExecutor:
         #   Test loss:0.1751423330705909
         #   Test accuracy:0.9735384615384616
         # --------------------------------------------------
-        # model = DNN(input_size=784,
-        #               layer_size_list=[100, 100, 100, 100, 5],
-        #               hidden_actfunc=Tanh(),
-        #               output_actfunc=SoftmaxWithLoss(),
-        #               loss_func=CrossEntropyError(),
-        #               init_weight_stddev=0.01,
-        #               learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
-        #               init_weight_change=True
-        #               )
+        model = DNN(input_size=784,
+                    layer_size_list=[100, 100, 100, 100, 5],
+                    hidden_actfunc=Tanh(),
+                    output_actfunc=SoftmaxWithLoss(),
+                    loss_func=CrossEntropyError(),
+                    init_weight_stddev=0.01,
+                    init_weight_change=True,
+                    learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9))
+                    )
 
         # ●Day4までの講義内容で、ミニバッチ学習のうち最良のモデル：Minibatch-ReLU-AdaGrad
         # 初期値変更あり・なしをやってみた。5層に増やしたので注意。
@@ -1021,15 +1021,15 @@ class NNExecutor:
         #
         #   gamma=5.0, beta=0.5, moving_decay=0.95：★Avg.loss=0.004, Avg.accuracy=1.000, Max.accuracy=1.000, Argmax=13 | Avg.test_loss=0.097, Avg.test_accuracy=0.970, Max.test_accuracy=0.985, Argmax=57
         #   （↑moving_decay=0.5にするとさらに損失が低くなったが、学習は遅くなった。）
-        model = DNN(input_size=784,
-                      layer_size_list=[100, 100, 5],
-                      hidden_actfunc=ReLU(),
-                      output_actfunc=SoftmaxWithLoss(),
-                      loss_func=CrossEntropyError(),
-                      init_weight_stddev=0.01,
-                      learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)),
-                      batch_normal_params=BatchNormalParams(gamma=5.0, beta=0.5, moving_decay=0.9)
-                      )
+        # model = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 5],
+        #               hidden_actfunc=ReLU(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               init_weight_stddev=0.01,
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)),
+        #               batch_normal_params=BatchNormalParams(gamma=5.0, beta=0.5, moving_decay=0.9)
+        #               )
 
         # ■5層
         #   バッチ正規化なし：★Avg.loss=0.091, Avg.accuracy=0.957, Max.accuracy=1.000, Argmax=59 | Avg.test_loss=0.223, Avg.test_accuracy=0.934, Max.test_accuracy=0.985, Argmax=59
