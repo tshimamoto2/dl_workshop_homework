@@ -40,9 +40,9 @@ class CNN:
         # print("★勾配計算")
 
         # 全レイヤー順伝播。predictを共通メソッドとして使用するが、その結果は逆伝播には不要なので取得はしない。
-        # print("★★順伝播(start)")
+        # print("★★gradient->predict start")
         self.predict(x, t, is_learning=True)
-        # print("★★順伝播(end)")
+        # print("★★gradient->predict end")
         # print()
 
         # 全レイヤー逆伝播。
@@ -59,8 +59,9 @@ class CNN:
     def predict(self, x, t, is_learning=False):
         z = x
         for layer in self.layers:
+            # prevshape = z.shape  # debug print用
             z = layer.forward(z, t, is_learning)
-            # print("{0:20s}の順伝播：input.shape({1}) --> output.shape({2})".format(layer.__class__.__name__, x.shape, z.shape))
+            # print("{0:20s}の順伝播：input.shape({1}) --> output.shape({2})".format(layer.__class__.__name__, prevshape, z.shape))
 
         # 正則化項の算出。
         regular = 0.0

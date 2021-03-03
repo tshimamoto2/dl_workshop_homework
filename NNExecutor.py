@@ -51,25 +51,18 @@ class NNExecutor:
                 Conv(FN=16, FH=3, FW=3, padding=1, stride=1, weight=NormalWeight(stddev=0.01)),
                 # 28x28 ... (28+2*1-3)/1+1=28
                 ReLU(),
-                Conv(FN=16, FH=3, FW=3, padding=1, stride=1, weight=NormalWeight(stddev=0.01)),
-                # 28x28 ... (28+2*1-3)/1+1=28
+                MaxPool(FH=2, FW=2, padding=0, stride=2),
+
+                # 14x14 ... (28+2*0-2)/2+1=14
+                Conv(FN=32, FH=3, FW=3, padding=1, stride=1, weight=NormalWeight(stddev=0.01)),
+                # 14x14 ... (14+2*1-3)/1+1=14
                 ReLU(),
                 MaxPool(FH=2, FW=2, padding=0, stride=2),
-                # 14x14 ... (28+2*0-2)/2+1=14
 
-                # # 14x14
-                # Conv(FN=32, FH=3, FW=3, padding=1, stride=1, weight=NormalWeight(stddev=0.01)),
-                # # 14x14 ... (14+2*1-3)/1+1=14
-                # ReLU(),
-                # Conv(FN=32, FH=3, FW=3, padding=1, stride=1, weight=NormalWeight(stddev=0.01)),
-                # # 14x14 ... (14+2*1-3)/1+1=14
-                # ReLU(),
-                # MaxPool(FH=2, FW=2, padding=0, stride=2),
-                # # 7x7 ... (14+2*0-2)/2+1=14
-
-                # Affine(node_size=100, weight=HeWeight()),
-                # ReLU(),
-                # Dropout(retain_rate=0.5),
+                # 7x7 ... (14+2*0-2)/2+1=7
+                Affine(node_size=100, weight=HeWeight()),
+                ReLU(),
+                Dropout(retain_rate=0.5),
 
                 Affine(node_size=100, weight=HeWeight()),
                 ReLU(),
@@ -79,7 +72,7 @@ class NNExecutor:
                 SoftmaxWithLoss()
             ],
             loss_func=CrossEntropyError(),
-            learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=AdaGrad(learning_rate=0.01),
+            learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=Momentum(learning_rate=0.01, decay_rate=0.9),
                               early_stopping_params=EarlyStoppingParams(early_stopping_patience=5, eps=4)),
             regularization=L2(lmda=0.0005),
         )
