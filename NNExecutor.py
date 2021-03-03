@@ -652,13 +652,27 @@ class NNExecutor:
         # 5層に増やした／init_weight_change=Trueを指定。
         # （元の実験）★kfold_num = 100: Avg.Loss = 0.001, Avg.Accuracy = 1.000, Max.Accuracy = 1.000, Argmax = 0
         # （初期値変更版）★kfold_num=100: Avg.Loss=0.000, Avg.Accuracy=1.000, Max.Accuracy=1.000, Argmax=0
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 100, 100, 5],
+        #               hidden_actfunc=Tanh(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               init_weight_stddev=0.01,
+        #               learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
+        #               init_weight_change=True
+        #               )
+
+        # Day4で、ミニバッチ学習で最良のモデル
+        # 初期値変更あり・なしをやってみた。5層に増やしたので注意。
+        # （元の結果）★Avg.loss=0.001, Avg.accuracy=1.000, Max.accuracy=1.000, Argmax=4 | Avg.test_loss=0.120, Avg.test_accuracy=0.965, Max.test_accuracy=0.970, Argmax=0
+        # （初期値変更なし）★Avg.loss=0.091, Avg.accuracy=0.957, Max.accuracy=1.000, Argmax=59 | Avg.test_loss=0.223, Avg.test_accuracy=0.934, Max.test_accuracy=0.985, Argmax=59
+        # （初期値変更あり）★Avg.loss=0.002, Avg.accuracy=1.000, Max.accuracy=1.000, Argmax=5 | Avg.test_loss=0.126, Avg.test_accuracy=0.982, Max.test_accuracy=0.985, Argmax=2
         self.nn = DNN(input_size=784,
                       layer_size_list=[100, 100, 100, 100, 5],
-                      hidden_actfunc=Tanh(),
+                      hidden_actfunc=ReLU(),
                       output_actfunc=SoftmaxWithLoss(),
                       loss_func=CrossEntropyError(),
-                      init_weight_stddev=0.01,
-                      learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
+                      learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)),
                       init_weight_change=True
                       )
 
