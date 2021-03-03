@@ -277,6 +277,7 @@ class NNExecutor:
         #               init_weight_change=True
         #               )
 
+        # 実験25派生：実験25'-B
         # 5層に増やした／init_weight_change=Trueを指定。
         # （元の実験）★kfold_num = 100: Avg.Loss = 0.001, Avg.Accuracy = 1.000, Max.Accuracy = 1.000, Argmax = 0
         # （初期値変更版）★kfold_num=100: Avg.Loss=0.000, Avg.Accuracy=1.000, Max.Accuracy=1.000, Argmax=0
@@ -1232,17 +1233,36 @@ class NNExecutor:
         #     ミニバッチサイズ50／L2正則化(λ=0.015)／3層：★Avg.l_loss=0.3025, Avg.l_accuracy=0.9997, Max.l_accuracy=1.0000, l_argmax=5 | Avg.v_loss=0.4119, Avg.v_accuracy=0.9560, Max.v_accuracy=0.9650, v_argmax=4
         #     ミニバッチサイズ50／L2正則化(λ=0.015)／5層：★Avg.l_loss=0.7490, Avg.l_accuracy=0.9993, Max.l_accuracy=1.0000, l_argmax=10 | Avg.v_loss=0.8181, Avg.v_accuracy=0.9784, Max.v_accuracy=0.9850, v_argmax=29
         # ------------------------------
+        # model = DNN(input_size=784,
+        #             layer_size_list=[100, 100, 100, 100, 5],
+        #             hidden_actfunc=ReLU(),
+        #             output_actfunc=SoftmaxWithLoss(),
+        #             loss_func=CrossEntropyError(),
+        #             init_weight_stddev=0.01,
+        #             init_weight_change=True,
+        #             learner=MiniBatch(epoch_num=100, mini_batch_size=50, optimizer=AdaGrad(learning_rate=0.01)),
+        #             #regularization=L2(lmda=0.015),
+        #             batch_normal_params=BatchNormalParams(gamma=5.0, beta=0.5, moving_decay=0.9),
+        #             #dropout_params=DropoutParams(input_retain_rate=0.5, hidden_retain_rate=0.8),
+        #             )
+
+        # 実験25'-B(重み初期値変更)
+        # random.seed(1234)でやってみた。
+        # 元の結果：★kfold_num=100: Avg.Loss=0.000, Avg.Accuracy=1.000, Max.Accuracy=1.000, Argmax=0
+        # ★Avg.l_loss=0.0007, Avg.l_accuracy=0.9998, Max.l_accuracy=1.0000, l_argmax=4 | Avg.v_loss=0.0036, Avg.v_accuracy=0.9990, Max.v_accuracy=1.0000, v_argmax=1
+        # 　⇒あまり変わらない。
+        # ◎さらに、分割数＝20でやってみた。ミニバッチ学習でのバッチサイズ50に合わせた。／5層／バッチ正規化β＝0.0
+        # ★Avg.l_loss=0.0535, Avg.l_accuracy=0.9851, Max.l_accuracy=0.9989, l_argmax=17 | Avg.v_loss=0.0716, Avg.v_accuracy=0.9740, Max.v_accuracy=1.0000, v_argmax=7
+        # 　　割と訓練データと検証データで損失の差が小さい。
         model = DNN(input_size=784,
                     layer_size_list=[100, 100, 100, 100, 5],
-                    hidden_actfunc=ReLU(),
+                    hidden_actfunc=Tanh(),
                     output_actfunc=SoftmaxWithLoss(),
                     loss_func=CrossEntropyError(),
                     init_weight_stddev=0.01,
                     init_weight_change=True,
-                    learner=MiniBatch(epoch_num=100, mini_batch_size=50, optimizer=AdaGrad(learning_rate=0.01)),
-                    #regularization=L2(lmda=0.015),
-                    batch_normal_params=BatchNormalParams(gamma=5.0, beta=0.5, moving_decay=0.9),
-                    #dropout_params=DropoutParams(input_retain_rate=0.5, hidden_retain_rate=0.8),
+                    learner=KFoldCrossValidation(kfold_num=20, optimizer=AdaDelta(decay_rate=0.9)),
+                    batch_normal_params=BatchNormalParams(gamma=5.0, beta=0.0, moving_decay=0.9),
                     )
 
         # ★上記いろいろと試してみたが、実験25が最もよかったが、それでも97.4%だった。
