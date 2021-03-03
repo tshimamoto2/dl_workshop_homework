@@ -4,22 +4,34 @@ import numpy as np
 # 隠れ層クラス
 ##################################################
 class HiddenLayer:
-    def __init__(self, W, B, actfunc, batch_normal=None):
+    def __init__(self, W, B, actfunc, batch_normal=None, input_dropout=None, hidden_dropout=None):
         self.affine = Affine(W, B)
         self.activation = actfunc
-        self.batch_normal = batch_normal
         self.act_dist = None
+        self.batch_normal = batch_normal
+        self.input_dropout = input_dropout
+        self.hidden_dropout = hidden_dropout
 
-    def forward(self, x, t):
+    def forward(self, x, t, is_learning=False):
+        z = x
+
+        # 入力層のノードのドロップアウト。
+        if self.input_dropout is not None:
+            z = self.input_dropout.forward(z, t, is_learning)
+
         # アフィン変換。
-        a = self.affine.forward(x, t)
+        z = self.affine.forward(z, t)
 
-        # バッチ正規化。アフィン変換と活性化の間に挟んだ。
+        # バッチ正規化。アフィン変換と活性化の間。
         if self.batch_normal is not None:
-            a = self.batch_normal.forward(a)
+            z = self.batch_normal.forward(z)
 
         # 活性化。
-        z = self.activation.forward(a, t)
+        z = self.activation.forward(z, t)
+
+        # 隠れ層のノードのドロップアウト。活性化の後。
+        if self.hidden_dropout is not None:
+            z = self.hidden_dropout.forward(z, t, is_learning)
 
         # アクティベーション分布を見るために保持。
         self.act_dist = z
@@ -27,6 +39,10 @@ class HiddenLayer:
         return z
 
     def backward(self, dout):
+        # 隠れ層のノードのドロップアウトの逆伝播。
+        if self.hidden_dropout is not None:
+            dout = self.hidden_dropout.backward(dout)
+
         # 活性化の逆伝播。
         dout = self.activation.backward(dout)
 
@@ -36,6 +52,11 @@ class HiddenLayer:
 
         # アフィン変換の逆伝播。
         dout = self.affine.backward(dout)
+
+        # 入力層のノードのドロップアウトの逆伝播。
+        if self.input_dropout is not None:
+            dout = self.input_dropout.backward(dout)
+
         return dout
 
 ##################################################
@@ -48,7 +69,9 @@ class LastLayer:
         self.batch_normal = batch_normal
         self.act_dist = None
 
-    def forward(self, x, t):
+    # is_learningは未使用。HiddenLayerクラスと形を合わせただけ。
+    # TODO debug 使わない変数は渡したくないので、抽象クラスを作って吸収したい。
+    def forward(self, x, t, is_learning=False):
         a = self.affine.forward(x, t)
         z = self.activation.forward(a, t)
         self.act_dist = z  # アクティベーション分布を保存するために保持しておく。
@@ -76,6 +99,7 @@ class Affine:
         self.numerical_dLdB = None
 
     # tは未使用。
+    # TODO debug 使わない変数は渡したくないので、抽象クラスを作って吸収したい。
     def forward(self, x, t):
         self.x = x
         return np.dot(x, self.W) + self.B
@@ -90,6 +114,7 @@ class Sigmoid:
         self.out = None
 
     # tは未使用。
+    # TODO debug 使わない変数は渡したくないので、抽象クラスを作って吸収したい。
     def forward(self, x, t):
         self.out = 1.0 / (1.0 + np.exp(-x))
         return self.out
@@ -103,6 +128,7 @@ class Tanh:
         self.out = None
 
     # tは未使用。
+    # TODO debug 使わない変数は渡したくないので、抽象クラスを作って吸収したい。
     def forward(self, x, t):
         self.out = np.tanh(x)
         return self.out
@@ -115,6 +141,7 @@ class ReLU:
         self.mask = None
 
     # tは未使用。
+    # TODO debug 使わない変数は渡したくないので、抽象クラスを作って吸収したい。
     def forward(self, x, t):
         self.mask = (x <= 0)
         out = x.copy()
@@ -267,6 +294,30 @@ class BatchNormal:
 
         return dout
 
+class DropoutParams:
+    def __init__(self, input_retain_rate=0.8, hidden_retain_rate=0.5):
+        self.input_retain_rate = input_retain_rate
+        self.hidden_retain_rate = hidden_retain_rate
+
+class Dropout:
+    def __init__(self, retain_rate=0.5):
+        self.retain_rate = retain_rate
+        self.mask = None
+
+    # tは未使用。
+    def forward(self, x, t, is_learning=False):
+        if is_learning:
+            self.mask = np.random.rand(*x.shape) <= self.retain_rate
+            return x * self.mask
+        else:
+            return x * self.retain_rate
+
+    def backward(self, dout):
+        # backwardは学習時のみ利用されるため、forwardが呼び出される前提であれば
+        # （上記is_learningが必ずTrueになるようにしておけば）、self.maskがNoneとなることはないの以下の式とする。
+        # 万が一self.maskがNoneになる状況があるとすればそればバグで、実行時エラー（下記）が発生するので検知できる。
+        # 『TypeError: unsupported operand type(s) for *: 'int' and 'NoneType'』
+        return dout * self.mask
 
 ##################################################
 # 以下、損失関数クラスの実装。

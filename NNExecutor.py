@@ -1,6 +1,6 @@
 import numpy as np
 from DNN import DNN
-from layers import Sigmoid, Tanh, ReLU, SoftmaxWithLoss, CrossEntropyError, BatchNormal, L2
+from layers import Sigmoid, Tanh, ReLU, SoftmaxWithLoss, CrossEntropyError, BatchNormal, L2, DropoutParams
 from learners import MiniBatch, KFoldCrossValidation
 from optimizers import SGD, Momentum, AdaGrad, AdaDelta, RMSProp, Adam, NAG
 
@@ -197,15 +197,15 @@ class NNExecutor:
         #   初期値変更なし：★kfold_num=100: Avg.Loss=0.001, Avg.Accuracy=1.000, Max.Accuracy=1.000, Argmax=0
         #   初期値変更あり：★kfold_num=100: Avg.Loss=0.001, Avg.Accuracy=1.000, Max.Accuracy=1.000, Argmax=0
         #   ↑あり・なしで結果は変わらない。
-        self.nn = DNN(input_size=784,
-                      layer_size_list=[100, 100, 5],
-                      hidden_actfunc=Tanh(),
-                      output_actfunc=SoftmaxWithLoss(),
-                      loss_func=CrossEntropyError(),
-                      init_weight_stddev=0.01,
-                      learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
-                      init_weight_change=True
-                      )
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 5],
+        #               hidden_actfunc=Tanh(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               init_weight_stddev=0.01,
+        #               learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
+        #               init_weight_change=True
+        #               )
 
         # 5層に増やした／init_weight_change=Trueを指定。
         # （元の実験）★kfold_num = 100: Avg.Loss = 0.001, Avg.Accuracy = 1.000, Max.Accuracy = 1.000, Argmax = 0
@@ -273,6 +273,43 @@ class NNExecutor:
         #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01)),
         #               batch_normal=BatchNormal(gamma=1.0, beta=0.0)
         #               )
+
+        ##############################
+        # 以下ドロップアウトを試す。
+        ##############################
+        # 過学習していると思われる、最良モデル『Kfold-Tanh-AdaDelta』についてドロップアウトを試してみた。
+        #   ドロップアウトなし：★kfold_num = 100: Avg.Loss = 0.001, Avg.Accuracy = 1.000, Max.Accuracy = 1.000, Argmax = 0
+        #   input_retain_rate=0.8, hidden_retain_rate=0.1の場合：★kfold_num=100: Avg.Loss=0.800, Avg.Accuracy=0.623, Max.Accuracy=1.000, Argmax=88
+        #   input_retain_rate=0.8, hidden_retain_rate=0.2の場合：★kfold_num=100: Avg.Loss=0.189, Avg.Accuracy=0.941, Max.Accuracy=1.000, Argmax=13
+        #   input_retain_rate=0.8, hidden_retain_rate=0.3の場合：★kfold_num=100: Avg.Loss=0.080, Avg.Accuracy=0.980, Max.Accuracy=1.000, Argmax=3
+        #   ↑ちょうどいい感じか？これで提出してみる。
+        #   input_retain_rate=0.8, hidden_retain_rate=0.4の場合：★kfold_num=100: Avg.Loss=0.034, Avg.Accuracy=0.989, Max.Accuracy=1.000, Argmax=2
+        #   input_retain_rate=0.8, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.020, Avg.Accuracy=0.996, Max.Accuracy=1.000, Argmax=2
+        #   input_retain_rate=0.8, hidden_retain_rate=0.6の場合：★kfold_num=100: Avg.Loss=0.015, Avg.Accuracy=0.996, Max.Accuracy=1.000, Argmax=2
+        #   input_retain_rate=0.8, hidden_retain_rate=0.7の場合：★kfold_num=100: Avg.Loss=0.010, Avg.Accuracy=0.998, Max.Accuracy=1.000, Argmax=0
+        #   input_retain_rate=0.8, hidden_retain_rate=0.8の場合：★kfold_num=100: Avg.Loss=0.006, Avg.Accuracy=0.998, Max.Accuracy=1.000, Argmax=0
+        #   input_retain_rate=0.8, hidden_retain_rate=0.9の場合：★kfold_num=100: Avg.Loss=0.003, Avg.Accuracy=0.998, Max.Accuracy=1.000, Argmax=0
+        #
+        #   以下、隠れ層を固定して入力層を変化。
+        #   input_retain_rate=0.1, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.151, Avg.Accuracy=0.942, Max.Accuracy=1.000, Argmax=13
+        #   input_retain_rate=0.2, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.091, Avg.Accuracy=0.968, Max.Accuracy=1.000, Argmax=5
+        #   ↑これもちょうどいい感じか？
+        #   input_retain_rate=0.3, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.066, Avg.Accuracy=0.984, Max.Accuracy=1.000, Argmax=2
+        #   input_retain_rate=0.4, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.049, Avg.Accuracy=0.985, Max.Accuracy=1.000, Argmax=2
+        #   input_retain_rate=0.5, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.038, Avg.Accuracy=0.989, Max.Accuracy=1.000, Argmax=2
+        #   input_retain_rate=0.6, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.027, Avg.Accuracy=0.994, Max.Accuracy=1.000, Argmax=2
+        #   input_retain_rate=0.7, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.022, Avg.Accuracy=0.995, Max.Accuracy=1.000, Argmax=2
+        #   input_retain_rate=0.8, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.020, Avg.Accuracy=0.996, Max.Accuracy=1.000, Argmax=2
+        #   input_retain_rate=0.9, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.019, Avg.Accuracy=0.995, Max.Accuracy=1.000, Argmax=2
+        self.nn = DNN(input_size=784,
+                      layer_size_list=[100, 100, 5],
+                      hidden_actfunc=Tanh(),
+                      output_actfunc=SoftmaxWithLoss(),
+                      loss_func=CrossEntropyError(),
+                      init_weight_stddev=0.01,
+                      learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
+                      dropout_params=DropoutParams(input_retain_rate=0.8, hidden_retain_rate=0.3)
+                      )
 
         ##############################
         # 以下ミニバッチサイズ10
@@ -840,15 +877,15 @@ class NNExecutor:
         #   lmda=0.1:★Avg.loss=1.609, Avg.accuracy=0.205, Max.accuracy=0.205, Argmax=8 | Avg.test_loss=1.611, Avg.test_accuracy=0.180, Max.test_accuracy=0.185, Argmax=0
         #   lmda=1.0:★Avg.loss=1.609, Avg.accuracy=0.205, Max.accuracy=0.205, Argmax=10 | Avg.test_loss=1.611, Avg.test_accuracy=0.180, Max.test_accuracy=0.185, Argmax=0
         #   lmda=10.0:★Avg.loss=1.609, Avg.accuracy=0.205, Max.accuracy=0.205, Argmax=10 | Avg.test_loss=1.611, Avg.test_accuracy=0.180, Max.test_accuracy=0.185, Argmax=0
+        # ⇒訓練データと検証データとの正解率の推移を見てみたが、L2の効果は分かりづらい。おそらく、最適化まで実施しているためそもそも最良に近いモデルだからと思われる。
         # self.nn = DNN(input_size=784,
         #               layer_size_list=[100, 100, 5],
         #               hidden_actfunc=ReLU(),
         #               output_actfunc=SoftmaxWithLoss(),
         #               loss_func=CrossEntropyError(),
         #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)),
-        #               regularization=L2(lmda=0.05)
+        #               regularization=L2(lmda=0.1)
         #               )
-
 
     def fit(self, train_data, train_label):
         self.nn.fit(train_data=train_data, train_label=train_label)

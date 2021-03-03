@@ -1,6 +1,6 @@
 import numpy as np
 from LearnedModel import LearnedModel
-from layers import HiddenLayer, LastLayer, Sigmoid, Tanh, ReLU, BatchNormal, SoftmaxWithLoss, CrossEntropyError, L2
+from layers import HiddenLayer, LastLayer, Sigmoid, Tanh, ReLU, BatchNormal, SoftmaxWithLoss, CrossEntropyError, L2, Dropout
 from learners import MiniBatch, KFoldCrossValidation
 from optimizers import SGD
 import pickle
@@ -18,7 +18,8 @@ class DNN:
                  learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01), is_numerical_gradient=False),
                  init_weight_change=False,  # 重みの初期値について実験
                  batch_normal=None,  # バッチ正規化について実験
-                 regularization=None  # 正則化について実験
+                 regularization=None,  # 正則化について実験
+                 dropout_params=None  # ドロップアウトについて実験
                  ):
 
         # LearnedModelとして保存したい引数の保持。
@@ -43,6 +44,7 @@ class DNN:
         self.init_weight_change = init_weight_change
         self.batch_normal = batch_normal
         self.regularization = regularization
+        self.dropout_params = dropout_params
 
         # TODO debug 提出時はNoneにすること。
         self.act_dist = None
@@ -83,8 +85,16 @@ class DNN:
         self.layers = []
         last_index = len(self.lm.layer_size_list) - 1
         for i, layer_size in enumerate(self.lm.layer_size_list):
-            if (i != last_index):
-                layer = HiddenLayer(self.lm.W[i], self.lm.B[i], self.hidden_actfunc, self.batch_normal)
+            input_dropout = None
+            hidden_dropout = None
+            if self.dropout_params is not None:
+                input_dropout = Dropout(retain_rate=self.dropout_params.input_retain_rate)
+                hidden_dropout = Dropout(retain_rate=self.dropout_params.hidden_retain_rate)
+
+            if i == 0:
+                layer = HiddenLayer(self.lm.W[i], self.lm.B[i], self.hidden_actfunc, self.batch_normal, input_dropout=input_dropout, hidden_dropout=hidden_dropout)
+            elif i != last_index:
+                layer = HiddenLayer(self.lm.W[i], self.lm.B[i], self.hidden_actfunc, self.batch_normal, input_dropout=None, hidden_dropout=hidden_dropout)
             else:
                 layer = LastLayer(self.lm.W[i], self.lm.B[i], self.output_actfunc)
             self.layers.append(layer)
@@ -99,21 +109,20 @@ class DNN:
 
     def gradient(self, x, t):
         # 順伝播。
-        y, loss, accuracy = self.predict(x, t)
+        y, loss, accuracy = self.predict(x, t, is_learning=True)
 
         # 逆伝播。
         dout = 1
-        #dout = loss
         for i, layer in enumerate(reversed(self.layers)):
             dout = layer.backward(dout)
 
     # 順伝播による出力層、損失、精度の算出。
     # 学習済みモデル、学習済みレイヤーが決まっていることが前提。
-    def predict(self, x, t):
+    def predict(self, x, t, is_learning=False):
         # 順伝播。
         z = x
         for i, layer in enumerate(self.layers):
-            z = layer.forward(z, t)
+            z = layer.forward(z, t, is_learning)
             # 各レイヤーのアクティベーション分布を保持。
             if self.act_dist is not None:
                 self.act_dist.put("layer" + str(i), layer.act_dist)
@@ -137,9 +146,10 @@ class DNN:
 
         return y, loss, accuracy
 
-    def loss(self, x, t):
-        y, loss, accuracy = self.predict(x, t)
-        return loss
+    # TODO 呼ばれてないので不要では？
+    # def loss(self, x, t):
+    #     y, loss, accuracy = self.predict(x, t)
+    #     return loss
 
     # 保存された学習済みモデルをロードして予測を行う。
     def predict_with_learned_model(self, model_path, x, t):
@@ -149,7 +159,7 @@ class DNN:
         # 学習済みモデルを使ってレイヤーを初期化。
         self.init_layers()
 
-        return self.predict(x, t)
+        return self.predict(x, t, is_learning=False)
 
     def accuracy(self, y, t):
         y = np.argmax(y, axis=1)
@@ -165,10 +175,10 @@ class DNN:
             return self.loss(x, t)
 
         for i, layer in enumerate(self.layers):
-            layer.affine.numerical_dLdW = self.numerical_gradient0(f, layer.affine.W)
-            layer.affine.numerical_dLdB = self.numerical_gradient0(f, layer.affine.B)
+            layer.affine.numerical_dLdW = self._numerical_gradient(f, layer.affine.W)
+            layer.affine.numerical_dLdB = self._numerical_gradient(f, layer.affine.B)
 
-    def numerical_gradient0(self, f, W):
+    def _numerical_gradient0(self, f, W):
         h = 1e-4  # 0.0001
         grad = np.zeros_like(W)
 

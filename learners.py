@@ -60,12 +60,12 @@ class MiniBatch:
 
             # エポックごとの精度を表示。
             # 訓練データを元に算出した性能（損失値と正解率）。
-            y, loss, accuracy = self.nn.predict(train_data, train_label)
+            y, loss, accuracy = self.nn.predict(train_data, train_label, is_learning=False)
             loss_list.append(loss)
             accuracy_list.append(accuracy)
 
             # 検証データを元に算出した性能（損失値と正解率）。
-            test_y, test_loss, test_accuracy = self.nn.predict(test_data, test_label)
+            test_y, test_loss, test_accuracy = self.nn.predict(test_data, test_label, is_learning=False)
             test_loss_list.append(test_loss)
             test_accuracy_list.append(test_accuracy)
             print("★epoch[{0}]終了：loss={1:.3f}, accuracy={2:.3f}, test_loss={3:.3f}, test_accuracy={4:.3f}".format(i, loss, accuracy, test_loss, test_accuracy))
@@ -129,7 +129,7 @@ class KFoldCrossValidation:
                 self.optimizer.update(self.nn)
 
             # 取り分けておいた検証データを使ってエポックごとの精度を表示する。
-            y, loss, accuracy = self.nn.predict(split_data[k], split_label[k])
+            y, loss, accuracy = self.nn.predict(split_data[k], split_label[k], is_learning=False)
             loss_list.append(loss)
             accuracy_list.append(accuracy)
             print("★epoch[{0}]終了 loss={1:.3f}, accuracy={2:.3f}".format(k, loss, accuracy))
