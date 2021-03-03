@@ -42,20 +42,16 @@ class MyImage:
         # return np.array(self.img.getdata())
         array = np.array(self.img)
 
-        # TODO debug
-        # if (self.fpath == "../1_data/train\\a\\a_0.png"):
-        #     print(array.shape[0])
-        #     print(array.shape[1])
-
         # 画素を直列化（1次元配列化）
         array = array.reshape(1, -1)
 
-        # 画素データを正規化。白黒反転（黒を示す値0が1.0に、白を示す値255が0.0になる）。
-        # ※実験してみると、白黒反転してもしなくても結果は同じだった。
+        # 画素データを正規化。
         # TODO 画素の最大値を使用するべきか？
         array = array.astype(np.float32)
-        array = (255.0 - array) / 255.0
         # array = array / 255.0
+        # （以下）白黒反転バージョン（黒を示す値0が1.0に、白を示す値255が0.0になる）。
+        # TODO 実験してみると、白黒反転すると学習が早く進んだケースがあった。念のため全部試してみる。
+        array = (255.0 - array) / 255.0
         return np.array(array[0])
 
     def label(self):

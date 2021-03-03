@@ -1,12 +1,14 @@
 import numpy as np
 
 class HiddenLayer():
-    def __init__(self, W, B):
+    def __init__(self, W, B, actfunc):
         self.affine = Affine(W, B)
 
         # TODO 活性化関数を切り替えれるようにしたい。
-        #self.activation = Sigmoid()  # TODO 勾配消失問題が発生するためか、学習が進まず100回のエポックでも正解率が20％のままだった。
-        self.activation = ReLU()  # 学習が進み正解率が97％を超過した。
+        # Sigmoid：勾配消失問題が発生するためか、学習が進まず100回のエポックでも正解率が20％のままだった。
+        # Tanh：
+        # ReLU：学習が進み正解率が97％を超過した。
+        self.activation = actfunc
 
     def forward(self, x, t):
         a = self.affine.forward(x, t)
@@ -19,10 +21,10 @@ class HiddenLayer():
         return dout
 
 class LastLayer():
-    def __init__(self, W, B):
+    def __init__(self, W, B, actfunc):
         # super().__init__()
         self.affine = Affine(W, B)
-        self.activation = SoftmaxWithLoss()  #  TODO 活性化関数をソフトマックス関数としておく。切り替えれるようにしたい。
+        self.activation = actfunc
 
     def forward(self, x, t):
         a = self.affine.forward(x, t)
@@ -47,6 +49,8 @@ class Affine():
         self.dLdW = None
         self.dLdB = None
         self.x = None
+        self.numerical_dLdW = None
+        self.numerical_dLdB = None
 
     # tは未使用。
     def forward(self, x, t):
@@ -70,6 +74,18 @@ class Sigmoid():
     def backward(self, dout):
         dLdx = dout * self.out * (1.0 - self.out)
         return dLdx
+
+class Tanh:
+    def __init__(self):
+        self.out = None
+
+    # tは未使用。
+    def forward(self, x, t):
+        self.out = np.tanh(x)
+        return self.out
+
+    def backward(self, dout):
+        return dout * (1.0 - self.out**2)
 
 class ReLU:
     def __init__(self):
@@ -99,11 +115,11 @@ class SoftmaxWithLoss():
     def backward(self, dout):
         # 活性化関数がソフトマックス関数で、且つ、損失関数がクロスエントロピー誤差関数の場合のみ、y-tになる。doutは未使用。
         # よって、損失関数として他の関数を使用する場合はこの式は成立しないので注意。
-        # TODO 損失関数とセットで誤差逆伝播を切り替えれるようにしたい。
         dLdx = (self.y - self.t) / self.y.shape[0]
         return dLdx
 
     def softmax(self, x):
+        # そもそもxが1次元配列である場合は和を取る方向を指定しない。
         if x.ndim == 1:
             x = x - np.max(x)
             return np.exp(x) / np.sum(np.exp(x))
@@ -113,3 +129,32 @@ class SoftmaxWithLoss():
             x = x - np.max(x, axis=0)
             y = np.exp(x) / np.sum(np.exp(x), axis=0)
             return y.T
+
+class CrossEntropyError:
+    def __init__(self):
+        # logの値をinfにしないための微小値。
+        self.delta = 1.0e-7
+
+    def loss(self, y, t):
+        if y.ndim == 1:
+            y = y.reshape(1, -1)
+            t = t.reshape(1, -1)
+
+        logy = np.log(y + self.delta)
+        E = -1.0 * np.sum(t * logy) / y.shape[0]
+        # E = np.sum(np.diag(-1.0 * np.dot(t, logy.T))) / batch_size  #行列積版。計算量が多いのでボツ。
+        return E
+
+class MeanSquaredError:
+    def __init__(self):
+        pass
+
+    def loss(self, y, t):
+        if y.ndim == 1:
+            y = y.reshape(1, -1)
+            t = t.reshape(1, -1)
+
+        diff = y - t
+        E = 0.5 * np.sum(np.sum(diff ** 2)) / y.shape[0]
+        # E = 0.5 * np.sum(np.diag(np.dot(diff, diff.T))) / batch_size  #行列積版。計算量が多いのでボツ。
+        return E
