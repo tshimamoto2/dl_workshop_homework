@@ -55,7 +55,8 @@ class NNExecutor:
                             SoftmaxWithLoss()
                             ],
                     loss_func=CrossEntropyError(),
-                    learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=SGD(learning_rate=0.01)),
+                    learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=AdaGrad(learning_rate=0.01)),
+                    # learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=SGD(learning_rate=0.01)),
                     #learner=KFoldCrossValidation(kfold_num=10, optimizer=SGD(learning_rate=0.01)),
                     # learner=KFoldCrossValidation(kfold_num=10, optimizer=AdaDelta(decay_rate=0.9)),
                     # regularization=None,  # 正則化（任意）
