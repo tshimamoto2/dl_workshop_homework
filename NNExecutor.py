@@ -14,6 +14,8 @@ class NNExecutor:
         pass
 
     def fit(self, model_save_path, train_data, train_label, isCNN=False):
+        np.random.seed(2000)
+
         if isCNN:
             self.nn = self.create_CNN()
         else:
@@ -46,28 +48,40 @@ class NNExecutor:
         # （CNN例）layers=[Conv(), ReLU(), Pool(), Affine(), ReLU(), Affine(), Dropout(), SoftmaxWithLoss()],
         model = CNN(layers=[
                 # 28x28
-                Conv(FN=16, FH=2, FW=2, padding=0, stride=1, weight=NormalWeight(stddev=0.01)),
-                # 27x27 ... (28+2*0-2)/1+1=27
+                Conv(FN=16, FH=3, FW=3, padding=1, stride=1, weight=NormalWeight(stddev=0.01)),
+                # 28x28 ... (28+2*1-3)/1+1=28
                 ReLU(),
-                MaxPool(FH=2, FW=2, padding=0, stride=1),
-                # 26x26 ... (27+2*0-2)/1+1=26
+                Conv(FN=16, FH=3, FW=3, padding=1, stride=1, weight=NormalWeight(stddev=0.01)),
+                # 28x28 ... (28+2*1-3)/1+1=28
+                ReLU(),
+                MaxPool(FH=2, FW=2, padding=0, stride=2),
+                # 14x14 ... (28+2*0-2)/2+1=14
 
-                Affine(node_size=676, weight=HeWeight()),
+                # # 14x14
+                # Conv(FN=32, FH=3, FW=3, padding=1, stride=1, weight=NormalWeight(stddev=0.01)),
+                # # 14x14 ... (14+2*1-3)/1+1=14
+                # ReLU(),
+                # Conv(FN=32, FH=3, FW=3, padding=1, stride=1, weight=NormalWeight(stddev=0.01)),
+                # # 14x14 ... (14+2*1-3)/1+1=14
+                # ReLU(),
+                # MaxPool(FH=2, FW=2, padding=0, stride=2),
+                # # 7x7 ... (14+2*0-2)/2+1=14
+
+                # Affine(node_size=100, weight=HeWeight()),
+                # ReLU(),
+                # Dropout(retain_rate=0.5),
+
+                Affine(node_size=100, weight=HeWeight()),
                 ReLU(),
+                Dropout(retain_rate=0.5),
 
                 Affine(node_size=5, weight=NormalWeight(stddev=0.01)),
                 SoftmaxWithLoss()
             ],
             loss_func=CrossEntropyError(),
-            # learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=SGD(learning_rate=0.01)),   # 全く学習が進まない。
-            # learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=Momentum(learning_rate=0.01, decay_rate=0.9)),
-            learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=AdaGrad(learning_rate=0.01)),  # 全く学習が進まない。
-            # learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=AdaDelta(decay_rate=0.9)),  # 全く学習が進まない。
-            # learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=Adam(learning_rate=0.01, decay_rate1=0.9, decay_rate2=0.9999)),  # 全く学習が進まない。
-            # 〇learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=NAG(learning_rate=0.01, decay_rate=0.9)),
-            # learner=KFoldCrossValidation(kfold_num=10, optimizer=SGD(learning_rate=0.01)),
-            # learner=KFoldCrossValidation(kfold_num=20, optimizer=AdaDelta(decay_rate=0.9)),
-            regularization=L2(lmda=0.005),
+            learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=AdaGrad(learning_rate=0.01),
+                              early_stopping_params=EarlyStoppingParams(early_stopping_patience=5, eps=4)),
+            regularization=L2(lmda=0.0005),
         )
         return model
 

@@ -72,8 +72,12 @@ class Affine(Layer):
             stddev = self.weight.get_stddev()
         else:
             pass
-        weight = np.random.randn(prev_node_size, node_size) * stddev
-        bias = np.zeros(node_size)
+        # デフォルトでは64ビット浮動小数点数であり、メモリ効率が悪いため、float32で保持する。
+        # ⇒こうすることでNN自体のpklファイルへの保存容量も減る。
+        weight = np.random.randn(prev_node_size, node_size).astype(np.float32) * stddev
+        bias = np.zeros(node_size).astype(np.float32)
+        # weight = np.random.randn(prev_node_size, node_size) * stddev
+        # bias = np.zeros(node_size)
         return weight, bias
 
     # TODO tは未使用。使わない変数は渡したくないので、抽象クラスを作って吸収したい。
@@ -671,9 +675,12 @@ class Conv:
 
         # フィルターの重みとバイアスを生成。
         if self.W is None:
-            np.random.seed(2000)
-            self.W = np.random.randn(self.FN, channel_size, self.FH, self.FW) * self.weight.get_stddev()
-            self.B = np.zeros((self.FN, OH, OW))
+            # デフォルトでは64ビット浮動小数点数であり、メモリ効率が悪いため、float32で保持する。
+            # ⇒こうすることでNN自体のpklファイルへの保存容量も減る。
+            self.W = np.random.randn(self.FN, channel_size, self.FH, self.FW).astype(np.float32) * self.weight.get_stddev()
+            self.B = np.zeros((self.FN, OH, OW)).astype(np.float32)
+            # self.W = np.random.randn(self.FN, channel_size, self.FH, self.FW) * self.weight.get_stddev()
+            # self.B = np.zeros((self.FN, OH, OW))
 
         # 入力データとフィルターとの畳み込み演算。2次元化したデータは逆伝播のために保持。
         self.x2d = im2col_HP(x, self.FH, self.FW, self.padding, self.stride)

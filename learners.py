@@ -2,21 +2,27 @@ import sys
 import numpy as np
 from optimizers import SGD
 import csv
+import sys
+import numpy as np
+from optimizers import SGD
+import csv
 
 class EarlyStoppingParams:
-    def __init__(self, early_stopping_patience=10):
+    def __init__(self, early_stopping_patience=5, eps=1.0e-4):
         self.early_stopping_patience = early_stopping_patience
+        self.eps = eps
 
 def is_early_stopping(early_stopping_params, prev_loss, loss, worsen_count):
+    next_prev_loss = loss
+    next_worsen_count = worsen_count
     if early_stopping_params is not None:
-        if loss > prev_loss:
-            worsen_count += 1
+        if (loss > prev_loss) & (np.abs(loss - prev_loss) > early_stopping_params.eps):
+            next_worsen_count = worsen_count + 1
             if worsen_count > early_stopping_params.early_stopping_patience:
-                is_stop = True
+                return True, next_prev_loss, next_worsen_count
         else:
-            worsen_count = 0
-        prev_loss = loss
-        return is_stop, prev_loss, worsen_count
+            next_worsen_count = 0
+    return False, next_prev_loss, next_worsen_count
 
 ##############################
 # ミニバッチ＋ホールドアウト法
@@ -68,10 +74,12 @@ class MiniBatch:
         # 早期終了用の前エポックでの損失の初期化。前エポックの損失よりも低くなれば更新するので、floatの最大値を初期値としておく。
         prev_loss = sys.float_info.max
         worsen_count = 0
+        stop_epoch = -1
 
         # 指定したエポック回数分ループ。
         for i in range(self.epoch_num):
             # print("★epoch[{0}]開始".format(i))
+            stop_epoch = i
 
             # 訓練データのインデックスをシャッフル。
             shuffled_indexes = np.arange(l_data.shape[0])
@@ -119,6 +127,8 @@ class MiniBatch:
             if self.early_stopping_params is not None:
                 is_stop, prev_loss, worsen_count = is_early_stopping(self.early_stopping_params, prev_loss, v_loss, worsen_count)
                 if is_stop:
+                    # TODO debug
+                    print("is_stop={0}, prev_loss={1}, worsen_count={2}, list(perform_csv_list)={3}".format(is_stop, prev_loss, worsen_count, list(perform_csv_list)))
                     break
 
         # 平均を見てみる。
@@ -133,7 +143,7 @@ class MiniBatch:
         with open('perform.csv', 'w') as f:
             w = csv.writer(f, lineterminator='\n')
             w.writerow(list(["epoch", "l_loss", "l_accuracy", "v_loss", "v_accuracy"]))
-            for i in range(self.epoch_num):
+            for i in range(stop_epoch):
                 w.writerow(perform_csv_list[i])
 
 ##############################
