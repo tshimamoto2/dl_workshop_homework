@@ -803,7 +803,7 @@ class NNExecutor:
                       loss_func=CrossEntropyError(),
                       init_weight_stddev=0.01,
                       learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
-                      regularization=L2(lmda=0.01)
+                      regularization=L2(lmda=0.1)
                       )
 
         # ■ミニバッチで最良のモデル：Minibatch-ReLU-AdaGrad／3層
