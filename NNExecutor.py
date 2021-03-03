@@ -46,13 +46,13 @@ class NNExecutor:
         # （CNN例）layers=[Conv(), ReLU(), Pool(), Affine(), ReLU(), Affine(), Dropout(), SoftmaxWithLoss()],
         model = CNN(layers=[
                 # 28x28
-                Conv(FN=16, FH=3, FW=3, padding=0, stride=1, weight=NormalWeight(stddev=0.01)),
-                # 26x26 ... (28+2*0-3)/1+1=26
+                Conv(FN=16, FH=2, FW=2, padding=0, stride=1, weight=NormalWeight(stddev=0.01)),
+                # 27x27 ... (28+2*0-2)/1+1=27
                 ReLU(),
                 MaxPool(FH=2, FW=2, padding=0, stride=1),
-                # 25x25 ... (26+2*0-2)/1+1=25
+                # 26x26 ... (27+2*0-2)/1+1=26
 
-                Affine(node_size=100, weight=HeWeight()),
+                Affine(node_size=676, weight=HeWeight()),
                 ReLU(),
 
                 Affine(node_size=5, weight=NormalWeight(stddev=0.01)),
