@@ -1134,15 +1134,28 @@ class NNExecutor:
         # 実験25について、k分割交差検証のkを減らして提出してみる。
         # ●k分割交差検証で最も良かったモデル：Kfold-Tanh-AdaDelta
         # 3層
-        #   ★kfold_num=100: Avg.Loss=0.001, Avg.Accuracy=1.000, Max.Accuracy=1.000, Argmax=0
+        #   kfold_num=100：★Avg.l_loss=0.0017, Avg.l_accuracy=0.9996, Max.l_accuracy=1.0000, l_argmax=4 | Avg.v_loss=0.0010, Avg.v_accuracy=1.0000, Max.v_accuracy=1.0000, v_argmax=0
+        #   kfold_num=10：★Avg.l_loss=0.2399, Avg.l_accuracy=0.9353, Max.l_accuracy=0.9978, l_argmax=7 | Avg.v_loss=0.2454, Avg.v_accuracy=0.9360, Max.v_accuracy=1.0000, v_argmax=6
+        # model = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 5],
+        #               hidden_actfunc=Tanh(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               init_weight_stddev=0.01,
+        #               #learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9))
+        #               learner=KFoldCrossValidation(kfold_num=10, optimizer=AdaDelta(decay_rate=0.9))
+        #               )
+
+        # 実験25派生：KFold-Tanh-AdaDelta／kfold_num=10／10層／初期値変更あり／バッチ正規化あり(gamma=2.0, beta=0.0, moving_decay=0.9)
         model = DNN(input_size=784,
-                      layer_size_list=[100, 100, 5],
-                      hidden_actfunc=Tanh(),
-                      output_actfunc=SoftmaxWithLoss(),
-                      loss_func=CrossEntropyError(),
-                      init_weight_stddev=0.01,
-                      #learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9))
-                      learner=KFoldCrossValidation(kfold_num=10, optimizer=AdaDelta(decay_rate=0.9))
-                      )
+                    layer_size_list=[100, 100, 100, 100, 100, 100, 100, 100, 100, 5],
+                    hidden_actfunc=Tanh(),
+                    output_actfunc=SoftmaxWithLoss(),
+                    loss_func=CrossEntropyError(),
+                    init_weight_stddev=0.01,
+                    init_weight_change=True,
+                    learner=KFoldCrossValidation(kfold_num=10, optimizer=AdaDelta(decay_rate=0.9)),
+                    batch_normal_params=BatchNormalParams(gamma=2.0, beta=0.0, moving_decay=0.9)
+                    )
 
         return model
