@@ -353,15 +353,17 @@ class BatchNormal:
         self.xnormalized = None
         self.xscaled = None
 
-        self.moving_iter = 0  # 移動平均の計算個数。ミニバッチ学習ごとに更新。# TODO いつクリアするのか？エポックごとにクリアする必要があるのでは？
         self.moving_ex = None  #  E[x]の移動平均（xはD個のベクトル）
         self.moving_varx = None  #  Var[x]の移動平均（xはD個のベクトル）
+        # TODO ↓不要になったのでは？
+        # self.moving_iter = 0  # 移動平均の計算個数。ミニバッチ学習ごとに更新。
 
-    def increment_moving_iter(self):
-        self.moving_iter += 1
-
-    def reset_moving_iter(self):
-        self.moving_iter = 0
+    # TODO ↓不要になったのでは？
+    # def increment_moving_iter(self):
+    #     self.moving_iter += 1
+    #
+    # def reset_moving_iter(self):
+    #     self.moving_iter = 0
 
     # 順伝播。
     # 入力データxの行方向にはミニバッチサイズ分だけの処理対象データが並んでいるとする。N個とする。

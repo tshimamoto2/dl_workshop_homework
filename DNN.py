@@ -179,19 +179,20 @@ class DNN:
 
         return grad
 
-    def increment_batch_normal_moving_iter(self):
-        if self.batch_normal_params is not None:
-            for layer in self.layers:
-                if hasattr(layer, "batch_normal"):
-                    if layer.batch_normal is not None:
-                        layer.batch_normal.increment_moving_iter()
-
-    def reset_batch_normal_moving_iter(self):
-        if self.batch_normal_params is not None:
-            for layer in self.layers:
-                if hasattr(layer, "batch_normal"):
-                    if layer.batch_normal is not None:
-                        layer.batch_normal.reset_moving_iter()
+    # TODO 不要になったのでは？
+    # def increment_batch_normal_moving_iter(self):
+    #     if self.batch_normal_params is not None:
+    #         for layer in self.layers:
+    #             if hasattr(layer, "batch_normal"):
+    #                 if layer.batch_normal is not None:
+    #                     layer.batch_normal.increment_moving_iter()
+    #
+    # def reset_batch_normal_moving_iter(self):
+    #     if self.batch_normal_params is not None:
+    #         for layer in self.layers:
+    #             if hasattr(layer, "batch_normal"):
+    #                 if layer.batch_normal is not None:
+    #                     layer.batch_normal.reset_moving_iter()
 
 # TODO debug用：アクティベーション分布を保存するクラス。
 class ActivationDistribution:

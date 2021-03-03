@@ -359,15 +359,15 @@ class NNExecutor:
         #   lmda=0.2:★kfold_num=100: Avg.Loss=1.611, Avg.Accuracy=0.162, Max.Accuracy=0.500, Argmax=14
         #   lmda=0.5:★kfold_num=100: Avg.Loss=1.611, Avg.Accuracy=0.162, Max.Accuracy=0.500, Argmax=14
         #   lmda=1.0:★kfold_num=100: Avg.Loss=1.611, Avg.Accuracy=0.162, Max.Accuracy=0.500, Argmax=14
-        model = DNN(input_size=784,
-                    layer_size_list=[100, 100, 5],
-                    hidden_actfunc=Tanh(),
-                    output_actfunc=SoftmaxWithLoss(),
-                    loss_func=CrossEntropyError(),
-                    init_weight_stddev=0.01,
-                    learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
-                    regularization=L2(lmda=0.01)
-                    )
+        # model = DNN(input_size=784,
+        #             layer_size_list=[100, 100, 5],
+        #             hidden_actfunc=Tanh(),
+        #             output_actfunc=SoftmaxWithLoss(),
+        #             loss_func=CrossEntropyError(),
+        #             init_weight_stddev=0.01,
+        #             learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
+        #             regularization=L2(lmda=0.01)
+        #             )
 
         # ■ミニバッチで最良のモデル：Minibatch-ReLU-AdaGrad／3層
         #   正則化なし：★Avg.loss=0.001, Avg.accuracy=1.000, Max.accuracy=1.000, Argmax=4 | Avg.test_loss=0.120, Avg.test_accuracy=0.965, Max.test_accuracy=0.970, Argmax=0
@@ -397,11 +397,13 @@ class NNExecutor:
         #   ↑ちょうどいい感じか？これで提出してみる。
         #   input_retain_rate=0.8, hidden_retain_rate=0.4の場合：★kfold_num=100: Avg.Loss=0.034, Avg.Accuracy=0.989, Max.Accuracy=1.000, Argmax=2
         #   input_retain_rate=0.8, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.020, Avg.Accuracy=0.996, Max.Accuracy=1.000, Argmax=2
-        #   ↑一応推奨値なのでこれも提出してみる。
+        #       （最新ログ出力での結果）★Avg.l_loss=0.0138, Avg.l_accuracy=0.9969, Max.l_accuracy=1.0000, l_argmax=34 | Avg.v_loss=0.0199, Avg.v_accuracy=0.9960, Max.v_accuracy=1.0000, v_argmax=2
+        #   ↑一応推奨値なので提出してみる。
         #   input_retain_rate=0.8, hidden_retain_rate=0.6の場合：★kfold_num=100: Avg.Loss=0.015, Avg.Accuracy=0.996, Max.Accuracy=1.000, Argmax=2
         #   input_retain_rate=0.8, hidden_retain_rate=0.7の場合：★kfold_num=100: Avg.Loss=0.010, Avg.Accuracy=0.998, Max.Accuracy=1.000, Argmax=0
         #   input_retain_rate=0.8, hidden_retain_rate=0.8の場合：★kfold_num=100: Avg.Loss=0.006, Avg.Accuracy=0.998, Max.Accuracy=1.000, Argmax=0
         #   input_retain_rate=0.8, hidden_retain_rate=0.9の場合：★kfold_num=100: Avg.Loss=0.003, Avg.Accuracy=0.998, Max.Accuracy=1.000, Argmax=0
+        #   ↑損失が最も低いが・・・過学習か？提出してみるか？
         #
         #   以下、隠れ層を固定して入力層を変化。
         #   input_retain_rate=0.1, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.151, Avg.Accuracy=0.942, Max.Accuracy=1.000, Argmax=13
@@ -414,15 +416,15 @@ class NNExecutor:
         #   input_retain_rate=0.7, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.022, Avg.Accuracy=0.995, Max.Accuracy=1.000, Argmax=2
         #   input_retain_rate=0.8, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.020, Avg.Accuracy=0.996, Max.Accuracy=1.000, Argmax=2
         #   input_retain_rate=0.9, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.019, Avg.Accuracy=0.995, Max.Accuracy=1.000, Argmax=2
-        # model = DNN(input_size=784,
-        #               layer_size_list=[100, 100, 5],
-        #               hidden_actfunc=Tanh(),
-        #               output_actfunc=SoftmaxWithLoss(),
-        #               loss_func=CrossEntropyError(),
-        #               init_weight_stddev=0.01,
-        #               learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
-        #               dropout_params=DropoutParams(input_retain_rate=0.8, hidden_retain_rate=0.5)
-        #               )
+        model = DNN(input_size=784,
+                    layer_size_list=[100, 100, 5],
+                    hidden_actfunc=Tanh(),
+                    output_actfunc=SoftmaxWithLoss(),
+                    loss_func=CrossEntropyError(),
+                    init_weight_stddev=0.01,
+                    learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
+                    dropout_params=DropoutParams(input_retain_rate=0.8, hidden_retain_rate=0.5)
+                    )
         # ------------------------------
         # 推奨パラメータでやってみる。
         # 原論文：N.Srivastava, G.Hinton, A.Krizhevsky, I.Sutskever, R.Salakhutdinov.
@@ -1045,7 +1047,7 @@ class NNExecutor:
 
         #   gamma=5.0, beta=0.5, moving_decay=0.1：（上記で実施済み）
         #   gamma=5.0, beta=0.5, moving_decay=0.5：★Avg.loss=0.161, Avg.accuracy=0.959, Max.accuracy=0.989, Argmax=3 | Avg.test_loss=0.164, Avg.test_accuracy=0.954, Max.test_accuracy=0.990, Argmax=36
-        #★↓提出
+        #★↓提出候補
         #   gamma=5.0, beta=0.5, moving_decay=0.9：★Avg.loss=0.136, Avg.accuracy=0.968, Max.accuracy=0.993, Argmax=4 | Avg.test_loss=0.137, Avg.test_accuracy=0.964, Max.test_accuracy=0.990, Argmax=15
         #   （↑gamma=5.0、beta=0.5の中では最も損失が低い）
         # model = DNN(input_size=784,
