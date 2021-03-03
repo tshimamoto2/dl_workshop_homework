@@ -1,6 +1,6 @@
 import numpy as np
 from LearnedModel import LearnedModel
-from layers import HiddenLayer, LastLayer, Sigmoid, Tanh, ReLU, BatchNormal, SoftmaxWithLoss, CrossEntropyError, L2, Dropout
+from layers import HiddenLayer, LastLayer, Sigmoid, Tanh, ReLU, BatchNormal, SoftmaxWithLoss, CrossEntropyError, Dropout
 from learners import MiniBatch, KFoldCrossValidation
 from optimizers import SGD
 import pickle
@@ -19,7 +19,8 @@ class DNN:
                  init_weight_change=False,  # 重みの初期値について実験
                  batch_normal=None,  # バッチ正規化について実験
                  regularization=None,  # 正則化について実験
-                 dropout_params=None  # ドロップアウトについて実験
+                 dropout_params=None,  # ドロップアウトについて実験
+                 early_stopping_params=None  # 早期終了
                  ):
 
         # LearnedModelとして保存したい引数の保持。
@@ -45,6 +46,7 @@ class DNN:
         self.batch_normal = batch_normal
         self.regularization = regularization
         self.dropout_params = dropout_params
+        self.early_stopping_params = early_stopping_params
 
         # TODO debug 提出時はNoneにすること。
         self.act_dist = None

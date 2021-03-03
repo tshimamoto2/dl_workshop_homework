@@ -1,5 +1,7 @@
+import sys
 import numpy as np
 from optimizers import SGD
+
 class MiniBatch:
     def __init__(self, epoch_num=100, mini_batch_size=100, optimizer=SGD(learning_rate=0.01), is_numerical_gradient=False):
         self.epoch_num = epoch_num
@@ -113,6 +115,10 @@ class KFoldCrossValidation:
         # 分割個数分のループ。
         loss_list = []
         accuracy_list = []
+
+        # 早期終了用。
+        prev_loss = sys.float_info.max
+        worsen_count = 0
         for k in range(self.kfold_num):
             # 分割データのうちインデックスkのものを検証データとし、残りの分割データを使って学習を行う。
             for j in range(self.kfold_num):
@@ -134,7 +140,22 @@ class KFoldCrossValidation:
             accuracy_list.append(accuracy)
             print("★epoch[{0}]終了 loss={1:.3f}, accuracy={2:.3f}".format(k, loss, accuracy))
 
+            # 早期終了判定。
+            if self.nn.early_stopping_params is not None:
+                if loss > prev_loss:
+                    worsen_count += 1
+                    if worsen_count > self.nn.early_stopping_params.early_stopping_patience:
+                        break
+                else:
+                    worsen_count = 0
+                prev_loss = loss
+
         # 平均を見てみる。
         print("★kfold_num={0:3d}: Avg.Loss={1:.3f}, Avg.Accuracy={2:.3f}, Max.Accuracy={3:.3f}, Argmax={4}".format(
             self.kfold_num, np.average(loss_list), np.average(accuracy_list), np.max(accuracy_list), np.argmax(accuracy_list)))
         print()
+
+class EarlyStoppingParams:
+    def __init__(self, early_stopping_patience=10):
+        self.early_stopping_patience = early_stopping_patience
+

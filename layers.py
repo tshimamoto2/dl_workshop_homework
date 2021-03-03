@@ -350,20 +350,3 @@ class MeanSquaredError:
         E = 0.5 * np.sum(np.sum(diff ** 2)) / y.shape[0]
         # E = 0.5 * np.sum(np.diag(np.dot(diff, diff.T))) / batch_size  #行列積版。計算量が多いのでボツ。
         return E
-
-##############################
-# 正則化
-##############################
-class L2:
-    def __init__(self, lmda=0.0):
-        self.lmda = lmda
-
-    def update_dLdW(self, layers):
-        for layer in layers:
-            layer.affine.dLdW += self.lmda * layer.affine.W
-
-    def regular(self, layers):
-        regular = 0
-        for layer in layers:
-            regular += 0.5 * self.lmda * np.sum(layer.affine.W ** 2)
-        return regular

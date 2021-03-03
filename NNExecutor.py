@@ -1,8 +1,9 @@
 import numpy as np
 from DNN import DNN
-from layers import Sigmoid, Tanh, ReLU, SoftmaxWithLoss, CrossEntropyError, BatchNormal, L2, DropoutParams
-from learners import MiniBatch, KFoldCrossValidation
+from layers import Sigmoid, Tanh, ReLU, SoftmaxWithLoss, CrossEntropyError, BatchNormal, DropoutParams
+from learners import MiniBatch, KFoldCrossValidation, EarlyStoppingParams
 from optimizers import SGD, Momentum, AdaGrad, AdaDelta, RMSProp, Adam, NAG
+from regularizations import L2
 
 class NNExecutor:
     def __init__(self):
@@ -302,14 +303,56 @@ class NNExecutor:
         #   input_retain_rate=0.7, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.022, Avg.Accuracy=0.995, Max.Accuracy=1.000, Argmax=2
         #   input_retain_rate=0.8, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.020, Avg.Accuracy=0.996, Max.Accuracy=1.000, Argmax=2
         #   input_retain_rate=0.9, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.019, Avg.Accuracy=0.995, Max.Accuracy=1.000, Argmax=2
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 5],
+        #               hidden_actfunc=Tanh(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               init_weight_stddev=0.01,
+        #               learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
+        #               dropout_params=DropoutParams(input_retain_rate=0.8, hidden_retain_rate=0.5)
+        #               )
+
+        # ------------------------------
+        # 推奨パラメータでやってみる。
+        # 原論文：N.Srivastava, G.Hinton, A.Krizhevsky, I.Sutskever, R.Salakhutdinov.
+        #       Dropout: A Simple Way to Prevent Neural Networks from Overfitting.
+        #       Journal of Machine Learning Research 15 (2014) 1929-1958
+        # ・隠れ層のノード数：nからn/pに増やす。pは隠れ層の保持率0.5。⇒現在100個÷0.5=200個に変更した。
+        # ・活性化関数：ReLUを使う。⇒やはりTanhの方がLossが低かったのでそのままTanhを使った。
+        # ・学習率ηまたはモーメンタムα：通常のNNで最適なηの10倍～100倍にする。または、モーメント係数（減衰率）を0.95～0.99にする。⇒0.95にした。
+        # ・正則化：L∞ノルムを使う（Cの値は3～4。つまりλ＝0.25～0.33）。⇒L∞ノルムでは学習が進まなかったのでL2のままにした（λ＝0.01）。
+        # ・保持率：入力層では0.8、隠れ層では0.5とした。
+        # ------------------------------
+        # 結果：エポック13回で早期終了した。
+        # ★epoch[0]終了 loss=1.411, accuracy=0.900
+        # ★epoch[1]終了 loss=0.479, accuracy=1.000
+        # ★epoch[2]終了 loss=0.631, accuracy=0.900
+        # ★epoch[3]終了 loss=0.474, accuracy=0.900
+        # ★epoch[4]終了 loss=0.289, accuracy=1.000
+        # ★epoch[5]終了 loss=0.284, accuracy=1.000
+        # ★epoch[6]終了 loss=0.289, accuracy=1.000
+        # ★epoch[7]終了 loss=0.540, accuracy=0.900
+        # ★epoch[8]終了 loss=0.281, accuracy=1.000
+        # ★epoch[9]終了 loss=0.298, accuracy=1.000
+        # ★epoch[10]終了 loss=0.299, accuracy=1.000
+        # ★epoch[11]終了 loss=0.375, accuracy=1.000
+        # ★epoch[12]終了 loss=0.407, accuracy=0.900
+        # ★kfold_num=100: Avg.Loss=0.466, Avg.Accuracy=0.962, Max.Accuracy=1.000, Argmax=1
+        #
+        # elapsed_time: 16.949 [sec]
+        # ------------------------------
         self.nn = DNN(input_size=784,
-                      layer_size_list=[100, 100, 5],
-                      hidden_actfunc=Tanh(),
+                      layer_size_list=[200, 200, 5],  # 隠れ層のノード数を隠れ層の保持率0.5で割って200に変更。⇒ただし計算時間大。
+                      hidden_actfunc=Tanh(),  # Tanhの方が良いのでそのままにした。⇒以下で重みの初期値変更も入れた。
                       output_actfunc=SoftmaxWithLoss(),
                       loss_func=CrossEntropyError(),
                       init_weight_stddev=0.01,
-                      learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
-                      dropout_params=DropoutParams(input_retain_rate=0.8, hidden_retain_rate=0.5)
+                      learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.95)),  # モーメンタム係数（減衰率）を0.95に変更。
+                      init_weight_change=True,  # 重みの初期値変更も入れてみた。
+                      regularization=L2(lmda=0.01),  # L∞ノルム（λは0.33(c=3に相当)）に変更。⇒L∞ノルムでやってみたが# が学習が進まないので止めた。
+                      dropout_params=DropoutParams(input_retain_rate=0.8, hidden_retain_rate=0.5),
+                      early_stopping_params=EarlyStoppingParams(3)  # 損失が1を超過してしまっていたので早期終了ロジックを入れた。3回連続悪化まで許す。
                       )
 
         ##############################
