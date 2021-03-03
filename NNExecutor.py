@@ -16,54 +16,8 @@ from optimizers import SGD, Momentum, AdaGrad, AdaDelta, RMSProp, Adam, NAG
 # ・学習率：0.01
 class NNExecutor:
     def __init__(self):
-        # ↓2層NN。エポック数を100回、ミニバッチサイズを20にすると97％を超過した。
-        #  self.nn = DNN(input_size=784, layer_size_list=[100, 5])
-
-        # ↓3層NN。学習が進まない。正解率20％。
-        # ⇒ReLUに切り替えると97％を超過した。
-        # ★fit start
-        # ★epoch[0]終了 loss=1.609, accuracy=0.209
-        # ・・・
-        # ★epoch[88]終了 loss=0.018, accuracy=0.998
-        # ★epoch[89]終了 loss=0.017, accuracy=0.998
-        # ★epoch[90]終了 loss=0.016, accuracy=0.998
-        # ★epoch[91]終了 loss=0.016, accuracy=0.998
-        # ★epoch[92]終了 loss=0.015, accuracy=0.998
-        # ★epoch[93]終了 loss=0.015, accuracy=0.998
-        # ★epoch[94]終了 loss=0.014, accuracy=0.998
-        # ★epoch[95]終了 loss=0.014, accuracy=0.998
-        # ★epoch[96]終了 loss=0.014, accuracy=0.998
-        # ★epoch[97]終了 loss=0.013, accuracy=0.998
-        # ★epoch[98]終了 loss=0.013, accuracy=0.998
-        # ★epoch[99]終了 loss=0.012, accuracy=0.998
-        # ★Avg. loss=0.540, Avg. accuracy=0.836, argmax(accuracy)=88
-        #self.nn = DNN(input_size=784, layer_size_list=[100, 100, 5])
-
-        # ↓4層NN。学習が進まない。正解率20％。
-        # ⇒ReLUに切り替えて実施したが、かえって3層のときよりも正解率が落ちた（33％などにかなり落ちた）。
-        # ★fit start
-        # ★epoch[0]終了 loss=1.609, accuracy=0.284
-        # ・・・
-        # ★epoch[97]終了 loss=1.609, accuracy=0.825
-        # ★epoch[98]終了 loss=1.609, accuracy=0.738
-        # ★epoch[99]終了 loss=1.609, accuracy=0.741
-        # ★Avg. loss=1.609, Avg. accuracy=0.332, argmax(accuracy)=97
-        # self.nn = DNN(input_size=784, layer_size_list=[100, 100, 100, 5])
-
-        # ↓5層NN。
-        # ⇒4層の場合と同様にReLUを使ったが、4層のときよりも学習が進まない。20％。
-        # ★fit start
-        # ★epoch[0]終了 loss=1.609, accuracy=0.200
-        # ★epoch[1]終了 loss=1.609, accuracy=0.200
-        # ・・・
-        # ★epoch[97]終了 loss=1.609, accuracy=0.200
-        # ★epoch[98]終了 loss=1.609, accuracy=0.200
-        # ★epoch[99]終了 loss=1.609, accuracy=0.200
-        # ★Avg. loss=1.609, Avg. accuracy=0.200, argmax(accuracy)=0
-        # self.nn = DNN(input_size=784, layer_size_list=[100, 100, 100, 100, 5],
-
         ##################################################
-        # 以下リファクタリング後：各活性化関数、損失関数を切り替えることができるようにした。
+        # 以下リファクタリング後：各活性化関数、損失関数、最適化を切り替えることができるようにした。
         ##################################################
         # （変遷１）入力データは単純正規化（255で割るだけ）／2層／エポック数3／ミニバッチサイズ100／Sigmoid／SGD
         # ⇒Accuracy20%程度。
@@ -102,6 +56,8 @@ class NNExecutor:
         #               output_actfunc=SoftmaxWithLoss(),
         #               loss_func=CrossEntropyError(),
         #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01)))
+
+        # ★★★以降、エポック数100、ミニバッチサイズ10で行く。
 
         # （変遷４）層数を変えてみた。3層
         # ⇒学習が全く進まない。
@@ -163,23 +119,82 @@ class NNExecutor:
         #               loss_func=CrossEntropyError(),
         #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01)))
 
-        # 2層、tanh⇒28%のまま進まず。
-        # ★Avg.Loss=1.611, Avg.Accuracy=0.283, Max.Accuracy=0.283, Argmax=0
+        # （変遷５－１）ノード数の増減をするととどうなるか？
+        # ★ノード数を10、100、1000にしてみた。
+        # 　ノード数10：★Avg.loss=0.487, Avg.accuracy=0.876, Max.accuracy=0.996, Argmax=93 | Avg.test_loss=0.517, Avg.test_accuracy=0.864, Max.test_accuracy=0.980, Argmax=34
+        # 　ノード数100：★Avg.loss=0.285, Avg.accuracy=0.937, Max.accuracy=0.995, Argmax=95 | Avg.test_loss=0.311, Avg.test_accuracy=0.930, Max.test_accuracy=0.980, Argmax=34
+        # 　ノード数1000：★Avg.loss=0.192, Avg.accuracy=0.954, Max.accuracy=0.995, Argmax=95 | Avg.test_loss=0.189, Avg.test_accuracy=0.957, Max.test_accuracy=0.990, Argmax=27
+        #  ⇒ノード数を大きくすると、性能は良くなっている（特に平均損失が低くなる）。ただし、1000の場合は処理時間が100の10倍以上かかっているため、計算リソースとの兼ね合いを考慮する必要がある。
+        # （参考）処理時間の計測：
+        # 　ノード数が10の場合：elapsed_time: 2.081 [sec]　elapsed_time: 2.113 [sec]　elapsed_time: 2.108 [sec]　⇒平均 2.1 [sec]
+        # 　ノード数が100の場合：elapsed_time: 6.412 [sec]　elapsed_time: 6.511 [sec]　elapsed_time: 6.502 [sec]　⇒平均 6.5 [sec]
+        # 　ノード数が1000の場合：elapsed_time: 79.701 [sec] elapsed_time: 79.792 [sec]　elapsed_time: 76.923 [sec]　⇒平均 79.8 [sec]
         # self.nn = DNN(input_size=784,
-        #               layer_size_list=[100, 5],
+        #               #layer_size_list=[10, 5],
+        #               #layer_size_list=[100, 5],
+        #               layer_size_list=[1000, 5],
+        #               hidden_actfunc=Sigmoid(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01)))
+
+        # （変遷５－２）ノード数100
+        # （変遷３－２）を元にして、ノード数1に減らした。
+        # 参考）（変遷３－２）の結果：★Avg.loss=0.289, Avg.accuracy=0.936, Max.accuracy=0.995, Argmax=98 | Avg.test_loss=0.309, Avg.test_accuracy=0.931, Max.test_accuracy=0.985, Argmax=30
+        # 結果）★Avg.loss = 1.261, Avg.accuracy = 0.392, Max.accuracy = 0.479, Argmax = 20 | Avg.test_loss = 1.280, Avg.test_accuracy = 0.361, Max.test_accuracy = 0.480, Argmax = 19
+        # ⇒性能が悪くなった。
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[10, 5],
+        #               hidden_actfunc=Sigmoid(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01)))
+
+        ##############################
+        # 以下、Day5の内容について調査・実験
+        ##############################
+        # 元の問題点：（変遷４－４）で学習が全く進まない。という問題点があった。
+        # （変遷６－１）Sigmoidの場合にXavierの初期値を使用するとどうなるか？
+        # ・標準偏差0.01固定の場合：★Avg.loss=1.612, Avg.accuracy=0.204, Max.accuracy=0.209, Argmax=0 | Avg.test_loss=1.617, Avg.test_accuracy=0.185, Max.test_accuracy=0.235, Argmax=24
+        # ↓
+        # ・Xavierの初期値の場合：★Avg.loss=1.582, Avg.accuracy=0.296, Max.accuracy=0.726, Argmax=81 | Avg.test_loss=1.589, Avg.test_accuracy=0.271, Max.test_accuracy=0.690, Argmax=81
+        # ⇒多少不安定だが（エポックごとに性能がぶれる）が、性能は良くなった。確かに効果があることが分かった。
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 100, 100, 5],
+        #               hidden_actfunc=Sigmoid(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01)),
+        #               init_weight_change=True   # 今回新たに実装。
+        #               )
+
+        # （変遷６－２）Tanhの場合にXavierの初期値を使用するとどうなるか？
+        # ・標準偏差0.01固定の場合：★Avg.loss=1.609, Avg.accuracy=0.209, Max.accuracy=0.209, Argmax=0 | Avg.test_loss=1.613, Avg.test_accuracy=0.165, Max.test_accuracy=0.165, Argmax=0
+        # ↓
+        # ・Xavierの初期値の場合：★Avg.loss=0.014, Avg.accuracy=0.999, Max.accuracy=1.000, Argmax=18 | Avg.test_loss=0.073, Avg.test_accuracy=0.984, Max.test_accuracy=0.985, Argmax=2
+        # ⇒大幅に改善した。
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 100, 100, 5],
         #               hidden_actfunc=Tanh(),
         #               output_actfunc=SoftmaxWithLoss(),
         #               loss_func=CrossEntropyError(),
-        #               learner=MiniBatch(epoch_num=100, mini_batch_size=100, learning_rate=0.01))
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01)),
+        #               init_weight_change=True   # 今回新たに実装。
+        #               )
 
-        # 2層、ReLU、ミニバッチサイズ＝100　⇒15%のまま進まず。
-        # ★Avg.Loss=1.609, Avg.Accuracy=0.150, Max.Accuracy=0.150, Argmax=0
+        # （変遷６－３）ReLUの場合に『Heの初期値』を使用。
+        # ・標準偏差0.01固定の場合：★Avg.loss=1.609, Avg.accuracy=0.209, Max.accuracy=0.209, Argmax=0 | Avg.test_loss=1.613, Avg.test_accuracy=0.165, Max.test_accuracy=0.165, Argmax=0
+        # ↓
+        # ・Heの初期値の場合：★Avg.loss=0.021, Avg.accuracy=0.996, Max.accuracy=1.000, Argmax=12 | Avg.test_loss=0.069, Avg.test_accuracy=0.982, Max.test_accuracy=0.985, Argmax=9
+        # ⇒大幅に改善した。
         # self.nn = DNN(input_size=784,
-        #               layer_size_list=[100, 5],
+        #               layer_size_list=[100, 100, 100, 100, 5],
         #               hidden_actfunc=ReLU(),
         #               output_actfunc=SoftmaxWithLoss(),
         #               loss_func=CrossEntropyError(),
-        #               learner=MiniBatch(epoch_num=100, mini_batch_size=100, learning_rate=0.01))
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01)),
+        #               init_weight_change=True   # 今回新たに実装。
+        #               )
 
         ##############################
         # 以下ミニバッチサイズ10
@@ -333,12 +348,12 @@ class NNExecutor:
         # AdaGrad
         # ★Avg.loss=0.017, Avg.accuracy=0.998, Max.accuracy=1.000, Argmax=17 | Avg.test_loss=0.154, Avg.test_accuracy=0.959, Max.test_accuracy=0.975, Argmax=60
         # ※白黒反転時：★Avg.loss=0.002, Avg.accuracy=1.000, Max.accuracy=1.000, Argmax=4 | Avg.test_loss=0.167, Avg.test_accuracy=0.960, Max.test_accuracy=0.960, Argmax=0
-        self.nn = DNN(input_size=784,
-                      layer_size_list=[100, 100, 5],
-                      hidden_actfunc=Tanh(),
-                      output_actfunc=SoftmaxWithLoss(),
-                      loss_func=CrossEntropyError(),
-                      learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)))
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 5],
+        #               hidden_actfunc=Tanh(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)))
 
         # AdaDelta
         # ★Avg.loss=0.014, Avg.accuracy=0.995, Max.accuracy=1.000, Argmax=14 | Avg.test_loss=0.208, Avg.test_accuracy=0.958, Max.test_accuracy=0.975, Argmax=87
@@ -632,6 +647,20 @@ class NNExecutor:
         #               loss_func=CrossEntropyError(),
         #               init_weight_stddev=0.01,
         #               learner=KFoldCrossValidation(kfold_num=100, optimizer=NAG(learning_rate=0.01, decay_rate=0.9)))
+
+        # ★★★では、Day4までの講義内容を実装した中で最も性能が良かったモデルについて、重みの初期値を変えてみたらどうなるか？
+        # 5層に増やした／init_weight_change=Trueを指定。
+        # （元の実験）★kfold_num = 100: Avg.Loss = 0.001, Avg.Accuracy = 1.000, Max.Accuracy = 1.000, Argmax = 0
+        # （初期値変更版）★kfold_num=100: Avg.Loss=0.000, Avg.Accuracy=1.000, Max.Accuracy=1.000, Argmax=0
+        self.nn = DNN(input_size=784,
+                      layer_size_list=[100, 100, 100, 100, 5],
+                      hidden_actfunc=Tanh(),
+                      output_actfunc=SoftmaxWithLoss(),
+                      loss_func=CrossEntropyError(),
+                      init_weight_stddev=0.01,
+                      learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
+                      init_weight_change=True
+                      )
 
     def fit(self, train_data, train_label):
         self.nn.fit(train_data=train_data, train_label=train_label)

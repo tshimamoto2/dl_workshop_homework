@@ -1,6 +1,6 @@
 import numpy as np
 from LearnedModel import LearnedModel
-from layers import HiddenLayer, LastLayer, Sigmoid, ReLU, SoftmaxWithLoss, CrossEntropyError
+from layers import HiddenLayer, LastLayer, Sigmoid, Tanh, ReLU, SoftmaxWithLoss, CrossEntropyError
 from learners import MiniBatch, KFoldCrossValidation
 from optimizers import SGD
 
@@ -14,7 +14,10 @@ class DNN:
                  output_actfunc=SoftmaxWithLoss(),
                  loss_func=CrossEntropyError(),
                  init_weight_stddev=0.01,
-                 learner=MiniBatch(epoch_num=100, mini_batch_size=100, optimizer=SGD(learning_rate=0.01), is_numerical_gradient=False)):
+                 learner=MiniBatch(epoch_num=100, mini_batch_size=100, optimizer=SGD(learning_rate=0.01), is_numerical_gradient=False),
+                 # 重みの初期値について実験
+                 init_weight_change=False
+                 ):
 
         # LearnedModelとして保存したい引数の保持。
         self.lm = LearnedModel()
@@ -34,6 +37,7 @@ class DNN:
         self.loss_func = loss_func
         self.learner = learner
         self.learner.set_NN(self)
+        self.init_weight_change = init_weight_change
 
     def init_weight(self):
         # TODO debug デバッグしやすさのため、再現性があるように指定。
@@ -41,8 +45,28 @@ class DNN:
         self.lm.W = []  # 各層の重み配列。要素のインデックスは、層のインデックスと一致。
         self.lm.B = []  # 各層のバイアス配列。要素のインデックスは、層のインデックスと一致。
         prev_size = self.lm.input_size
+
         for i, crnt_size in enumerate(self.lm.layer_size_list):
-            self.lm.W.append(np.random.randn(prev_size, crnt_size) * self.lm.init_weight_stddev)
+            # デフォルトでは指定された標準偏差を使う。
+            stddev = self.lm.init_weight_stddev
+            if self.init_weight_change:
+                # print("★self.init_weight_changeが指定されました。", self.init_weight_change)
+                if (self.hidden_actfunc.__class__ == Sigmoid) | (self.hidden_actfunc.__class__ == Tanh):
+                    # print("★SigmoidまたはTanhです。Xavierの初期値を使用します。")
+                    stddev = np.sqrt(2.0 / (prev_size + crnt_size))
+                elif self.hidden_actfunc.__class__ == ReLU:
+                    # print("★ReLUです。Heの初期値を使用します。")
+                    stddev = np.sqrt(2.0 / prev_size)
+                else:
+                    # print("★活性化関数がSigmoid、Tanh、ReLU以外です。：self.hidden_actfunc.__class__=", self.hidden_actfunc.__class__)
+                    # print("★標準偏差{0}の標準正規分布からの無作為抽出を行います。".format(self.lm.init_weight_stddev))
+                    pass
+            else:
+                #print("★self.init_weight_changeが指定されませんでした。", self.init_weight_change)
+                #print("★標準偏差{0}の標準正規分布からの無作為抽出を行います。".format(self.lm.init_weight_stddev))
+                pass
+
+            self.lm.W.append(np.random.randn(prev_size, crnt_size) * stddev)
             self.lm.B.append(np.zeros(crnt_size))
             prev_size = crnt_size
 
