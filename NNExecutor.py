@@ -72,7 +72,9 @@ class NNExecutor:
                 SoftmaxWithLoss()
             ],
             loss_func=CrossEntropyError(),
-            learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=Momentum(learning_rate=0.01, decay_rate=0.9),
+            # learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=Momentum(learning_rate=0.01, decay_rate=0.9),
+            #                   early_stopping_params=EarlyStoppingParams(early_stopping_patience=5, eps=4)),
+            learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=AdaGrad(learning_rate=0.01),
                               early_stopping_params=EarlyStoppingParams(early_stopping_patience=5, eps=4)),
             regularization=L2(lmda=0.0005),
         )
