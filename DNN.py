@@ -3,6 +3,7 @@ from layers import HiddenLayer, LastLayer, Sigmoid, Tanh, ReLU, BatchNormal, Sof
 from losses import CrossEntropyError
 from learners import MiniBatch, KFoldCrossValidation
 from optimizers import SGD
+import pickle
 
 class DNN:
     def __init__(self,
@@ -13,11 +14,11 @@ class DNN:
                  loss_func=CrossEntropyError(),
                  init_weight_stddev=0.01,
                  init_weight_change=False,  # 重みの初期値変更
-                 learner=None,
-                 regularization=None,  # 正則化
-                 dropout_params=None,  # ドロップアウト
-                 early_stopping_params=None,  # 早期終了
-                 batch_normal_params=None  # バッチ正規化
+                 learner=None,  # 学習アルゴリズム（必須）
+                 regularization=None,  # 正則化（任意）
+                 dropout_params=None,  # ドロップアウト（任意）
+                 early_stopping_params=None,  # 早期終了（任意）
+                 batch_normal_params=None  # バッチ正規化（任意）
                  ):
 
         # 保存対象。
@@ -112,7 +113,6 @@ class DNN:
             dout = layer.backward(dout)
 
     # 順伝播による出力層、損失、精度の算出。
-    # 学習済みモデル、学習済みレイヤーが決まっていることが前提。
     def predict(self, x, t, is_learning=False):
         # 順伝播。
         z = x
@@ -140,16 +140,6 @@ class DNN:
         accuracy = self.accuracy(y, t)
 
         return y, loss, accuracy
-
-    # # 保存された学習済みモデルをロードして予測を行う。
-    # def predict_with_learned_model(self, model_path, x, t):
-    #     # 学習済みモデル（重み、バイアス）のロード。
-    #     self.lm = LearnedModel().load(model_path)
-    #
-    #     # 学習済みモデルを使ってレイヤーを初期化。
-    #     self.init_layers()
-    #
-    #     return self.predict(x, t, is_learning=False)
 
     def accuracy(self, y, t):
         y = np.argmax(y, axis=1)

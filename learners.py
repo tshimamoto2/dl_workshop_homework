@@ -94,7 +94,7 @@ class MiniBatch:
             test_y, test_loss, test_accuracy = self.nn.predict(test_data, test_label, is_learning=False)
             test_loss_list.append(test_loss)
             test_accuracy_list.append(test_accuracy)
-            print("★epoch[{0}]終了：loss={1:.3f}, accuracy={2:.3f}, test_loss={3:.3f}, test_accuracy={4:.3f}".format(i, loss, accuracy, test_loss, test_accuracy))
+            print("★epoch[{0}]終了：loss={1:.4f}, accuracy={2:.4f}, test_loss={3:.4f}, test_accuracy={4:.4f}".format(i, loss, accuracy, test_loss, test_accuracy))
 
             # 早期終了判定。
             if self.nn.early_stopping_params is not None:
@@ -103,8 +103,8 @@ class MiniBatch:
                     break
 
         # 平均を見てみる。
-        print("★Avg.loss={0:.3f}, Avg.accuracy={1:.3f}, Max.accuracy={2:.3f}, Argmax={3} | "
-              "Avg.test_loss={4:.3f}, Avg.test_accuracy={5:.3f}, Max.test_accuracy={6:.3f}, Argmax={7}".format(
+        print("★Avg.loss={0:.4f}, Avg.accuracy={1:.4f}, Max.accuracy={2:.4f}, Argmax={3} | "
+              "Avg.test_loss={4:.4f}, Avg.test_accuracy={5:.4f}, Max.test_accuracy={6:.4f}, Argmax={7}".format(
             np.average(loss_list), np.average(accuracy_list), np.max(accuracy_list), np.argmax(accuracy_list),
             np.average(test_loss_list), np.average(test_accuracy_list), np.max(test_accuracy_list), np.argmax(test_accuracy_list),
         ))
@@ -163,7 +163,7 @@ class KFoldCrossValidation:
             y, loss, accuracy = self.nn.predict(split_data[k], split_label[k], is_learning=False)
             loss_list.append(loss)
             accuracy_list.append(accuracy)
-            print("★epoch[{0}]終了 loss={1:.3f}, accuracy={2:.3f}".format(k, loss, accuracy))
+            print("★epoch[{0}]終了 loss={1:.4f}, accuracy={2:.4f}".format(k, loss, accuracy))
 
             # 早期終了判定。
             if self.nn.early_stopping_params is not None:
@@ -172,7 +172,7 @@ class KFoldCrossValidation:
                     break
 
         # 平均を見てみる。
-        print("★kfold_num={0:3d}: Avg.Loss={1:.3f}, Avg.Accuracy={2:.3f}, Max.Accuracy={3:.3f}, Argmax={4}".format(
+        print("★kfold_num={0:3d}: Avg.Loss={1:.4f}, Avg.Accuracy={2:.4f}, Max.Accuracy={3:.4f}, Argmax={4}".format(
             self.kfold_num, np.average(loss_list), np.average(accuracy_list), np.max(accuracy_list), np.argmax(accuracy_list)))
         print()
 

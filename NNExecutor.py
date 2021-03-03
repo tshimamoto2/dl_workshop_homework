@@ -279,15 +279,15 @@ class NNExecutor:
         #   Test loss:0.1751423330705909
         #   Test accuracy:0.9735384615384616
         # --------------------------------------------------
-        model = DNN(input_size=784,
-                    layer_size_list=[100, 100, 100, 100, 5],
-                    hidden_actfunc=Tanh(),
-                    output_actfunc=SoftmaxWithLoss(),
-                    loss_func=CrossEntropyError(),
-                    init_weight_stddev=0.01,
-                    init_weight_change=True,
-                    learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9))
-                    )
+        # model = DNN(input_size=784,
+        #             layer_size_list=[100, 100, 100, 100, 5],
+        #             hidden_actfunc=Tanh(),
+        #             output_actfunc=SoftmaxWithLoss(),
+        #             loss_func=CrossEntropyError(),
+        #             init_weight_stddev=0.01,
+        #             init_weight_change=True,
+        #             learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9))
+        #             )
 
         # ●Day4までの講義内容で、ミニバッチ学習のうち最良のモデル：Minibatch-ReLU-AdaGrad
         # 初期値変更あり・なしをやってみた。5層に増やしたので注意。
@@ -341,7 +341,7 @@ class NNExecutor:
         ##############################
         # ■k分割交差検証での最良のモデル（明らかに過学習）：Kfold-Tanh-AdaDelta／3層
         #   正則化なし：★kfold_num=100: Avg.Loss=0.001, Avg.Accuracy=1.000, Max.Accuracy=1.000, Argmax=0
-        #   lmda=0.01:★kfold_num=100: Avg.Loss=0.157, Avg.Accuracy=0.988, Max.Accuracy=1.000, Argmax=0
+        #   lmda=0.01:★kfold_num=100: Avg.Loss=0.1568, Avg.Accuracy=0.9880, Max.Accuracy=1.0000, Argmax=0
         #       ↑提出したもので97.4%を記録したパターンのテストデータでのロスに最も近いので、これで提出してみる。
         #       提出結果は以下。
         #             講座名:dl_tokyo_2
@@ -359,15 +359,15 @@ class NNExecutor:
         #   lmda=0.2:★kfold_num=100: Avg.Loss=1.611, Avg.Accuracy=0.162, Max.Accuracy=0.500, Argmax=14
         #   lmda=0.5:★kfold_num=100: Avg.Loss=1.611, Avg.Accuracy=0.162, Max.Accuracy=0.500, Argmax=14
         #   lmda=1.0:★kfold_num=100: Avg.Loss=1.611, Avg.Accuracy=0.162, Max.Accuracy=0.500, Argmax=14
-        # model = DNN(input_size=784,
-        #               layer_size_list=[100, 100, 5],
-        #               hidden_actfunc=Tanh(),
-        #               output_actfunc=SoftmaxWithLoss(),
-        #               loss_func=CrossEntropyError(),
-        #               init_weight_stddev=0.01,
-        #               learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
-        #               regularization=L2(lmda=0.1)
-        #               )
+        model = DNN(input_size=784,
+                    layer_size_list=[100, 100, 5],
+                    hidden_actfunc=Tanh(),
+                    output_actfunc=SoftmaxWithLoss(),
+                    loss_func=CrossEntropyError(),
+                    init_weight_stddev=0.01,
+                    learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
+                    regularization=L2(lmda=0.01)
+                    )
 
         # ■ミニバッチで最良のモデル：Minibatch-ReLU-AdaGrad／3層
         #   正則化なし：★Avg.loss=0.001, Avg.accuracy=1.000, Max.accuracy=1.000, Argmax=4 | Avg.test_loss=0.120, Avg.test_accuracy=0.965, Max.test_accuracy=0.970, Argmax=0
