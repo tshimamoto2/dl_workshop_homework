@@ -285,6 +285,7 @@ class NNExecutor:
         #   ↑ちょうどいい感じか？これで提出してみる。
         #   input_retain_rate=0.8, hidden_retain_rate=0.4の場合：★kfold_num=100: Avg.Loss=0.034, Avg.Accuracy=0.989, Max.Accuracy=1.000, Argmax=2
         #   input_retain_rate=0.8, hidden_retain_rate=0.5の場合：★kfold_num=100: Avg.Loss=0.020, Avg.Accuracy=0.996, Max.Accuracy=1.000, Argmax=2
+        #   ↑一応推奨値なのでこれも提出してみる。
         #   input_retain_rate=0.8, hidden_retain_rate=0.6の場合：★kfold_num=100: Avg.Loss=0.015, Avg.Accuracy=0.996, Max.Accuracy=1.000, Argmax=2
         #   input_retain_rate=0.8, hidden_retain_rate=0.7の場合：★kfold_num=100: Avg.Loss=0.010, Avg.Accuracy=0.998, Max.Accuracy=1.000, Argmax=0
         #   input_retain_rate=0.8, hidden_retain_rate=0.8の場合：★kfold_num=100: Avg.Loss=0.006, Avg.Accuracy=0.998, Max.Accuracy=1.000, Argmax=0
@@ -308,7 +309,7 @@ class NNExecutor:
                       loss_func=CrossEntropyError(),
                       init_weight_stddev=0.01,
                       learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
-                      dropout_params=DropoutParams(input_retain_rate=0.8, hidden_retain_rate=0.3)
+                      dropout_params=DropoutParams(input_retain_rate=0.8, hidden_retain_rate=0.5)
                       )
 
         ##############################
