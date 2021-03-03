@@ -6,9 +6,17 @@ class SGD:
 
     def update(self, nn):
         for i, layer in enumerate(nn.layers):
-            layer.affine.W -= self.learning_rate * layer.affine.dLdW
-            layer.affine.B -= self.learning_rate * layer.affine.dLdB
+            if (layer.__class__.__name__ == "ReLU") | (layer.__class__.__name__ == "MaxPool") | (layer.__class__.__name__ == "SoftmaxWithLoss"):
+                continue
+            # CNN対応版。
+            layer.W -= self.learning_rate * layer.dLdW
+            layer.B -= self.learning_rate * layer.dLdB
+            # TODO 以下DNN版なので不要。
+            # layer.affine.W -= self.learning_rate * layer.affine.dLdW
+            # layer.affine.B -= self.learning_rate * layer.affine.dLdB
 
+
+# TODO CNN対応版にすること。
 class Momentum:
     def __init__(self, learning_rate=0.01, decay_rate=0.9):
         self.learning_rate = learning_rate

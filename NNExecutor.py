@@ -1,22 +1,24 @@
 import numpy as np
+import pickle
 from DNN import DNN
-from layers import Sigmoid, Tanh, ReLU, SoftmaxWithLoss, DropoutParams, BatchNormalParams
+from CNN import CNN
+from layers import HiddenLayer, LastLayer, Affine, Sigmoid, Tanh, ReLU, SoftmaxWithLoss, DropoutParams, BatchNormalParams, XavierWeight, HeWeight, NormalWeight
 from losses import CrossEntropyError
 from learners import MiniBatch, KFoldCrossValidation, EarlyStoppingParams
 from optimizers import SGD, Momentum, AdaGrad, AdaDelta, RMSProp, Adam, NAG
 from regularizations import L2
-import pickle
+from convolutions import Conv, MaxPool
 
 class NNExecutor:
     def __init__(self):
         self.nn = None
         pass
 
-    def fit(self, model_save_path, train_data, train_label, is_dnn=False):
-        if is_dnn:
-            self.nn = self.create_dnn()
+    def fit(self, model_save_path, train_data, train_label, isCNN=False):
+        if isCNN:
+            self.nn = self.create_CNN()
         else:
-            self.nn = self.create_cnn()
+            self.nn = self.create_DNN()
 
         self.nn.fit(train_data=train_data, train_label=train_label)
         self.save_model(model_save_path)
@@ -35,44 +37,37 @@ class NNExecutor:
             model = pickle.load(f)
         return model
 
-    # 誤差逆伝播法と数値微分の差異があるかどうかを見るためのデバッグ用メソッド。
-    # check_gradientの実行結果は以下。差異がないことが判明した。
-    # layer[0]: diff=4.4969488372317266e-10
-    # layer[1]: diff=5.936436439956446e-09
-    def check_gradient(self, train_data, train_label):
-        # self.nn = DNN(input_size=784, layer_size_list=[10, 5])
-        self.nn = DNN(input_size=784,
-                      layer_size_list=[10, 5],
-                      hidden_actfunc=ReLU(),
-                      output_actfunc=SoftmaxWithLoss(),
-                      loss_func=CrossEntropyError(),
-                      init_weight_stddev=0.01,
-                      learner=MiniBatch(epoch_num=10, mini_batch_size=100, optimizer=SGD(learning_rate=0.01), is_numerical_gradient=True))
-
-        # 数値微分は計算量が多く処理時間がかかる（しばらく返ってこない）ため、
-        # 使用するデータ個数とエポック数を絞る。
-        x = train_data[:3]
-        t = train_label[:3]
-
-        # fitメソッドを動かすことにより、全レイヤーの（中のAffineレイヤー）のgradientとnumerical_gradientを実行してメモリに保持。
-        # ただし、numerical_gradient=Trueを指定しているので注意。
-        self.nn.fit(train_data=x, train_label=t)
-        #self.nn.fit(train_data=x, train_label=t, init_weight_stddev=0.01, epoch_num=3, mini_batch_size=100, learning_rate=0.01, numerical_gradient=True)
-
-        for i, layer in enumerate(self.nn.layers):
-            bg = layer.affine.dLdW
-            # print(bg)
-            ng = layer.affine.numerical_dLdW
-            # print(ng)
-
-            # Wの各成分ごとの差異の絶対値を、全成分に渡って平均。
-            diff = np.average(np.abs(bg - ng))
-            print("layer[{0}]: diff={1}".format(i, diff))
+    def create_CNN(self):
+        # TODO レイヤーリストをノードの個数にせず、各レイヤークラスのインスタンスを並べることにする。
+        # よって、やろうと思えばDNNとして動かすことも可能なように作ること。
+        # （DNN例）layers=[Dropout(), Affine(), BatchNormal(), ReLU(), Dropout(), Affine(), SoftmaxWithLoss()],
+        # （CNN例）layers=[Conv(), ReLU(), Pool(), Affine(), ReLU(), Affine(), Dropout(), SoftmaxWithLoss()],
+        model = CNN(layers=[
+                            # 28x28
+                            Conv(FN=1, FH=2, FW=2, padding=0, stride=1, weight=NormalWeight(stddev=0.01)),
+                            # 27x27
+                            ReLU(),
+                            MaxPool(FH=2, FW=2, padding=0, stride=1),
+                            # 26x26
+                            Affine(crnt_size=100, weight=HeWeight(prev_size=26*26)),
+                            ReLU(),
+                            Affine(crnt_size=5, weight=HeWeight(prev_size=26*26)),
+                            SoftmaxWithLoss()
+                            ],
+                    loss_func=CrossEntropyError(),
+                    learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=SGD(learning_rate=0.01)),
+                    #learner=KFoldCrossValidation(kfold_num=10, optimizer=SGD(learning_rate=0.01)),
+                    # learner=KFoldCrossValidation(kfold_num=10, optimizer=AdaDelta(decay_rate=0.9)),
+                    # regularization=None,  # 正則化（任意）
+                    # dropout_params=DropoutParams(input_retain_rate=0.8, hidden_retain_rate=0.5),
+                    # batch_normal_params=BatchNormalParams(gamma=2.0, beta=0.0, moving_decay=0.9),
+                    )
+        return model
 
     ##################################################
     # DNNモデルの生成。勉強のため、手動でハイパーパラメータチューニングを行った。
     ##################################################
-    def create_dnn(self):
+    def create_DNN(self):
         model = None
 
         ##################################################
@@ -277,7 +272,6 @@ class NNExecutor:
         #               init_weight_change=True
         #               )
 
-        # 実験25派生：実験25'-B
         # 5層に増やした／init_weight_change=Trueを指定。
         # （元の実験）★kfold_num = 100: Avg.Loss = 0.001, Avg.Accuracy = 1.000, Max.Accuracy = 1.000, Argmax = 0
         # （初期値変更版）★kfold_num=100: Avg.Loss=0.000, Avg.Accuracy=1.000, Max.Accuracy=1.000, Argmax=0
@@ -1184,76 +1178,6 @@ class NNExecutor:
         # Test loss:0.1584541231725537
         # Test accuracy:0.9627692307692308
         # ------------------------------
-        # model = DNN(input_size=784,
-        #             layer_size_list=[100, 100, 100, 100, 5],
-        #             hidden_actfunc=Tanh(),
-        #             output_actfunc=SoftmaxWithLoss(),
-        #             loss_func=CrossEntropyError(),
-        #             init_weight_stddev=0.01,
-        #             init_weight_change=True,
-        #             learner=KFoldCrossValidation(kfold_num=10, optimizer=AdaDelta(decay_rate=0.9)),
-        #             batch_normal_params=BatchNormalParams(gamma=2.0, beta=0.0, moving_decay=0.9),
-        #             dropout_params=DropoutParams(input_retain_rate=0.8, hidden_retain_rate=0.5),
-        #             )
-
-        # ------------------------------
-        # 実験17派生：Minibatch-ReLU-AdaGrad／ミニバッチサイズを10から50に変更／3層
-        #   ミニバッチサイズ10：★Avg.l_loss=0.0388, Avg.l_accuracy=0.9894, Max.l_accuracy=0.9975, l_argmax=82 | Avg.v_loss=0.1648, Avg.v_accuracy=0.9526, Max.v_accuracy=0.9650, v_argmax=8
-        #   ミニバッチサイズ50：★Avg.l_loss=0.0037, Avg.l_accuracy=0.9993, Max.l_accuracy=1.0000, l_argmax=4 | Avg.v_loss=0.1626, Avg.v_accuracy=0.9683, Max.v_accuracy=0.9750, v_argmax=48
-        #   ミニバッチサイズ100：★Avg.l_loss=0.0143, Avg.l_accuracy=0.9975, Max.l_accuracy=1.0000, l_argmax=7 | Avg.v_loss=0.1610, Avg.v_accuracy=0.9653, Max.v_accuracy=0.9700, v_argmax=22
-        #
-        # ■以下random.seed(1234)とした。
-        #   ＋以下、ミニバッチサイズ10のまま（比較用）。
-        #     重み初期値変更なし／3層：★Avg.l_loss=0.0023, Avg.l_accuracy=0.9996, Max.l_accuracy=1.0000, l_argmax=6 | Avg.v_loss=0.0187, Avg.v_accuracy=0.9927, Max.v_accuracy=0.9950, v_argmax=30
-        #     重み初期値変更あり／3層：★Avg.l_loss=0.0010, Avg.l_accuracy=0.9999, Max.l_accuracy=1.0000, l_argmax=2 | Avg.v_loss=0.0287, Avg.v_accuracy=0.9848, Max.v_accuracy=0.9850, v_argmax=0
-        #   ＋以下、ミニバッチサイズ50。
-        #     重み初期値変更なし／3層：★Avg.l_loss=0.0054, Avg.l_accuracy=0.9992, Max.l_accuracy=1.0000, l_argmax=9 | Avg.v_loss=0.0345, Avg.v_accuracy=0.9881, Max.v_accuracy=0.9900, v_argmax=28
-        #     重み初期値変更あり／3層：★Avg.l_loss=0.0025, Avg.l_accuracy=0.9997, Max.l_accuracy=1.0000, l_argmax=4 | Avg.v_loss=0.0305, Avg.v_accuracy=0.9885, Max.v_accuracy=0.9900, v_argmax=28
-        #   ＋以下、バッチ正規化＋重み初期値変更。
-        #     ミニバッチサイズ50／バッチ正規化／3層：★Avg.l_loss=0.0064, Avg.l_accuracy=0.9987, Max.l_accuracy=1.0000, l_argmax=17 | Avg.v_loss=0.0714, Avg.v_accuracy=0.9736, Max.v_accuracy=0.9800, v_argmax=34
-        # 　  ◎ミニバッチサイズ50／バッチ正規化／5層：★Avg.l_loss=0.1305, Avg.l_accuracy=0.9573, Max.l_accuracy=0.9800, l_argmax=34 | Avg.v_loss=0.1301, Avg.v_accuracy=0.9564, Max.v_accuracy=0.9850, v_argmax=48
-        #       ⇒損失が小さく、且つ、訓練データと検証データの差は少ない。
-        #   ＋以下、L2正則化＋重み初期値変更。
-        #     ミニバッチサイズ50／L2正則化(λ=0.015)／3層：★Avg.l_loss=0.3407, Avg.l_accuracy=0.9995, Max.l_accuracy=1.0000, l_argmax=6 | Avg.v_loss=0.3581, Avg.v_accuracy=0.9921, Max.v_accuracy=1.0000, v_argmax=44
-        #       ⇒損失は大きいが、訓練データと検証データの差は少ない。
-        #     ミニバッチサイズ50／L2正則化(λ=0.015)／5層：★Avg.l_loss=0.8738, Avg.l_accuracy=0.9989, Max.l_accuracy=1.0000, l_argmax=11 | Avg.v_loss=0.8985, Avg.v_accuracy=0.9885, Max.v_accuracy=0.9950, v_argmax=32
-        #     ミニバッチサイズ50／L2正則化(λ=0.01)／3層：★Avg.l_loss=0.2842, Avg.l_accuracy=0.9997, Max.l_accuracy=1.0000, l_argmax=5 | Avg.v_loss=0.3023, Avg.v_accuracy=0.9940, Max.v_accuracy=1.0000, v_argmax=30
-        #
-        # ■以下random.seedなし。
-        #   以下、ミニバッチサイズ10（比較用）／3層。
-        #     重み初期値変更なし：★Avg.l_loss=0.0017, Avg.l_accuracy=0.9997, Max.l_accuracy=1.0000, l_argmax=4 | Avg.v_loss=0.0650, Avg.v_accuracy=0.9897, Max.v_accuracy=0.9900, v_argmax=6
-        #     重み初期値変更あり：★Avg.l_loss=0.0011, Avg.l_accuracy=0.9999, Max.l_accuracy=1.0000, l_argmax=3 | Avg.v_loss=0.1223, Avg.v_accuracy=0.9761, Max.v_accuracy=0.9800, v_argmax=79
-        #   以下、ミニバッチサイズ50（比較用）／3層。
-        #     重み初期値変更なし：★Avg.l_loss=0.0050, Avg.l_accuracy=0.9994, Max.l_accuracy=1.0000, l_argmax=5 | Avg.v_loss=0.1077, Avg.v_accuracy=0.9787, Max.v_accuracy=0.9800, v_argmax=2
-        #     重み初期値変更あり：★Avg.l_loss=0.0024, Avg.l_accuracy=0.9997, Max.l_accuracy=1.0000, l_argmax=5 | Avg.v_loss=0.0996, Avg.v_accuracy=0.9698, Max.v_accuracy=0.9750, v_argmax=0
-        #   ＋以下、バッチ正規化＋重み初期値変更。
-        #     ミニバッチサイズ50／バッチ正規化／3層：★Avg.l_loss=0.0051, Avg.l_accuracy=0.9992, Max.l_accuracy=1.0000, l_argmax=6 | Avg.v_loss=0.0706, Avg.v_accuracy=0.9734, Max.v_accuracy=0.9850, v_argmax=13
-        # 　  ミニバッチサイズ50／バッチ正規化／5層：★Avg.l_loss=0.0885, Avg.l_accuracy=0.9724, Max.l_accuracy=0.9900, l_argmax=74 | Avg.v_loss=0.2647, Avg.v_accuracy=0.9386, Max.v_accuracy=0.9750, v_argmax=73
-        #   ＋以下、L2正則化＋重み初期値変更。
-        #     ミニバッチサイズ50／L2正則化(λ=0.015)／3層：★Avg.l_loss=0.3025, Avg.l_accuracy=0.9997, Max.l_accuracy=1.0000, l_argmax=5 | Avg.v_loss=0.4119, Avg.v_accuracy=0.9560, Max.v_accuracy=0.9650, v_argmax=4
-        #     ミニバッチサイズ50／L2正則化(λ=0.015)／5層：★Avg.l_loss=0.7490, Avg.l_accuracy=0.9993, Max.l_accuracy=1.0000, l_argmax=10 | Avg.v_loss=0.8181, Avg.v_accuracy=0.9784, Max.v_accuracy=0.9850, v_argmax=29
-        # ------------------------------
-        # model = DNN(input_size=784,
-        #             layer_size_list=[100, 100, 100, 100, 5],
-        #             hidden_actfunc=ReLU(),
-        #             output_actfunc=SoftmaxWithLoss(),
-        #             loss_func=CrossEntropyError(),
-        #             init_weight_stddev=0.01,
-        #             init_weight_change=True,
-        #             learner=MiniBatch(epoch_num=100, mini_batch_size=50, optimizer=AdaGrad(learning_rate=0.01)),
-        #             #regularization=L2(lmda=0.015),
-        #             batch_normal_params=BatchNormalParams(gamma=5.0, beta=0.5, moving_decay=0.9),
-        #             #dropout_params=DropoutParams(input_retain_rate=0.5, hidden_retain_rate=0.8),
-        #             )
-
-        # 実験25'-B(重み初期値変更)
-        # random.seed(1234)でやってみた。
-        # 元の結果：★kfold_num=100: Avg.Loss=0.000, Avg.Accuracy=1.000, Max.Accuracy=1.000, Argmax=0
-        # ★Avg.l_loss=0.0007, Avg.l_accuracy=0.9998, Max.l_accuracy=1.0000, l_argmax=4 | Avg.v_loss=0.0036, Avg.v_accuracy=0.9990, Max.v_accuracy=1.0000, v_argmax=1
-        # 　⇒あまり変わらない。
-        # ◎さらに、分割数＝20でやってみた。ミニバッチ学習でのバッチサイズ50に合わせた。／5層／バッチ正規化β＝0.0
-        # ★Avg.l_loss=0.0535, Avg.l_accuracy=0.9851, Max.l_accuracy=0.9989, l_argmax=17 | Avg.v_loss=0.0716, Avg.v_accuracy=0.9740, Max.v_accuracy=1.0000, v_argmax=7
-        # 　　割と訓練データと検証データで損失の差が小さい。
         model = DNN(input_size=784,
                     layer_size_list=[100, 100, 100, 100, 5],
                     hidden_actfunc=Tanh(),
@@ -1261,11 +1185,50 @@ class NNExecutor:
                     loss_func=CrossEntropyError(),
                     init_weight_stddev=0.01,
                     init_weight_change=True,
-                    learner=KFoldCrossValidation(kfold_num=20, optimizer=AdaDelta(decay_rate=0.9)),
-                    batch_normal_params=BatchNormalParams(gamma=5.0, beta=0.0, moving_decay=0.9),
+                    learner=KFoldCrossValidation(kfold_num=10, optimizer=AdaDelta(decay_rate=0.9)),
+                    batch_normal_params=BatchNormalParams(gamma=2.0, beta=0.0, moving_decay=0.9),
+                    dropout_params=DropoutParams(input_retain_rate=0.8, hidden_retain_rate=0.5),
                     )
 
         # ★上記いろいろと試してみたが、実験25が最もよかったが、それでも97.4%だった。
         #   ⇒DNNのロジックで性能を上げようとするのは無理があるのかもしれない。
 
         return model
+
+    ##############################
+    # 動作確認用メソッド
+    ##############################
+    # TODO このメソッドは提出時は不要。
+    # 誤差逆伝播法と数値微分の差異があるかどうかを見る。
+    # check_gradientの実行結果は以下。差異がないことが判明した。
+    # layer[0]: diff=4.4969488372317266e-10
+    # layer[1]: diff=5.936436439956446e-09
+    def check_gradient(self, train_data, train_label):
+        # self.nn = DNN(input_size=784, layer_size_list=[10, 5])
+        self.nn = DNN(input_size=784,
+                      layer_size_list=[10, 5],
+                      hidden_actfunc=ReLU(),
+                      output_actfunc=SoftmaxWithLoss(),
+                      loss_func=CrossEntropyError(),
+                      init_weight_stddev=0.01,
+                      learner=MiniBatch(epoch_num=10, mini_batch_size=100, optimizer=SGD(learning_rate=0.01), is_numerical_gradient=True))
+
+        # 数値微分は計算量が多く処理時間がかかる（しばらく返ってこない）ため、
+        # 使用するデータ個数とエポック数を絞る。
+        x = train_data[:3]
+        t = train_label[:3]
+
+        # fitメソッドを動かすことにより、全レイヤーの（中のAffineレイヤー）のgradientとnumerical_gradientを実行してメモリに保持。
+        # ただし、numerical_gradient=Trueを指定しているので注意。
+        self.nn.fit(train_data=x, train_label=t)
+        #self.nn.fit(train_data=x, train_label=t, init_weight_stddev=0.01, epoch_num=3, mini_batch_size=100, learning_rate=0.01, numerical_gradient=True)
+
+        for i, layer in enumerate(self.nn.layers):
+            bg = layer.affine.dLdW
+            # print(bg)
+            ng = layer.affine.numerical_dLdW
+            # print(ng)
+
+            # Wの各成分ごとの差異の絶対値を、全成分に渡って平均。
+            diff = np.average(np.abs(bg - ng))
+            print("layer[{0}]: diff={1}".format(i, diff))

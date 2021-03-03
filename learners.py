@@ -19,12 +19,12 @@ def is_early_stopping(early_stopping_params, prev_loss, loss, worsen_count):
         return is_stop, prev_loss, worsen_count
 
 class MiniBatch:
-    def __init__(self, epoch_num=100, mini_batch_size=100, optimizer=SGD(learning_rate=0.01), is_numerical_gradient=False):
+    def __init__(self, epoch_num=100, mini_batch_size=100, optimizer=SGD(learning_rate=0.01), is_numerical_gradient=False, early_stopping_params=None):
         self.epoch_num = epoch_num
         self.mini_batch_size = mini_batch_size
         self.optimizer = optimizer
-
         self.is_numerical_gradient = is_numerical_gradient
+        self.early_stopping_params = early_stopping_params
 
     def set_NN(self, nn):
         self.nn = nn
@@ -108,8 +108,8 @@ class MiniBatch:
             print("★epoch[{0}]終了：l_loss={1:.4f}, l_accuracy={2:.4f}, v_loss={3:.4f}, v_accuracy={4:.4f}".format(i, l_loss, l_accuracy, v_loss, v_accuracy))
 
             # 早期終了判定。
-            if self.nn.early_stopping_params is not None:
-                is_stop, prev_loss, worsen_count = is_early_stopping(self.nn.early_stopping_params, prev_loss, v_loss, worsen_count)
+            if self.early_stopping_params is not None:
+                is_stop, prev_loss, worsen_count = is_early_stopping(self.early_stopping_params, prev_loss, v_loss, worsen_count)
                 if is_stop:
                     break
 
@@ -122,9 +122,10 @@ class MiniBatch:
         print()
 
 class KFoldCrossValidation:
-    def __init__(self, kfold_num, optimizer=SGD(learning_rate=0.01)):
+    def __init__(self, kfold_num, optimizer=SGD(learning_rate=0.01), early_stopping_params=None):
         self.kfold_num = kfold_num
         self.optimizer = optimizer
+        self.early_stopping_params = early_stopping_params
 
     def set_NN(self, nn):
         self.nn = nn
@@ -169,7 +170,7 @@ class KFoldCrossValidation:
             l_label = np.delete(split_label.copy(), k, axis=0).reshape(-1, train_label.shape[1])
 
             for j in range(self.kfold_num):
-                if (j == k):
+                if j == k:
                     continue
 
                 # 勾配計算。
@@ -197,8 +198,8 @@ class KFoldCrossValidation:
             perform_csv_list.append(list([k, "{0:.4f}".format(l_loss), "{0:.4f}".format(l_accuracy), "{0:.4f}".format(v_loss), "{0:.4f}".format(v_accuracy)]))
 
             # 早期終了判定。
-            if self.nn.early_stopping_params is not None:
-                is_stop, prev_loss, worsen_count = is_early_stopping(self.nn.early_stopping_params, prev_loss, v_loss, worsen_count)
+            if self.early_stopping_params is not None:
+                is_stop, prev_loss, worsen_count = is_early_stopping(self.early_stopping_params, prev_loss, v_loss, worsen_count)
                 if is_stop:
                     break
 

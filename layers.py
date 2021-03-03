@@ -1,117 +1,100 @@
 import numpy as np
 
 ##################################################
-# 隠れ層クラス
+# 共通クラス、メソッドなど。
 ##################################################
-class HiddenLayer:
-    def __init__(self, W, B, actfunc, batch_normal_params=None, input_dropout=None, hidden_dropout=None):
-        self.affine = Affine(W, B)
-        self.activation = actfunc
-        self.act_dist = None
+class XavierWeight:
+    def __init__(self, prev_size, crnt_size):
+        self.stddev = np.sqrt(2.0 / (prev_size + crnt_size))
+    def get_stddev(self):
+        return self.stddev
 
-        self.input_dropout = input_dropout
-        self.hidden_dropout = hidden_dropout
+class HeWeight:
+    def __init__(self, prev_size):
+        self.stddev = np.sqrt(2.0 / prev_size)
+    def get_stddev(self):
+        return self.stddev
 
-        self.batch_normal_params = batch_normal_params
-        self.batch_normal = None
-        if self.batch_normal_params is not None:
-            self.batch_normal = BatchNormal(self.batch_normal_params)
-
-    def forward(self, x, t, is_learning=False):
-        z = x
-
-        # 入力層のノードのドロップアウト。
-        if self.input_dropout is not None:
-            z = self.input_dropout.forward(z, t, is_learning)
-
-        # アフィン変換。
-        z = self.affine.forward(z, t)
-
-        # バッチ正規化。アフィン変換と活性化の間。
-        if self.batch_normal_params is not None:
-            z = self.batch_normal.forward(z, is_learning)
-
-        # 活性化。
-        z = self.activation.forward(z, t)
-
-        # 隠れ層のノードのドロップアウト。活性化の後。
-        if self.hidden_dropout is not None:
-            z = self.hidden_dropout.forward(z, t, is_learning)
-
-        # アクティベーション分布を見るために保持。
-        self.act_dist = z
-
-        return z
-
-    def backward(self, dout):
-        # 隠れ層のノードのドロップアウトの逆伝播。
-        if self.hidden_dropout is not None:
-            dout = self.hidden_dropout.backward(dout)
-
-        # 活性化の逆伝播。
-        dout = self.activation.backward(dout)
-
-        # バッチ正規化の逆伝播。
-        if self.batch_normal is not None:
-            dout = self.batch_normal.backward(dout)
-
-        # アフィン変換の逆伝播。
-        dout = self.affine.backward(dout)
-
-        # 入力層のノードのドロップアウトの逆伝播。
-        if self.input_dropout is not None:
-            dout = self.input_dropout.backward(dout)
-
-        return dout
-
-##################################################
-# 出力層クラス
-##################################################
-class LastLayer:
-    def __init__(self, W, B, actfunc):
-        self.affine = Affine(W, B)
-        self.activation = actfunc
-        self.act_dist = None
-
-    # is_learningは未使用。HiddenLayerクラスと形を合わせただけ。
-    # TODO debug 使わない変数は渡したくないので、抽象クラスを作って吸収したい。
-    def forward(self, x, t, is_learning=False):
-        a = self.affine.forward(x, t)
-        z = self.activation.forward(a, t)
-        self.act_dist = z  # アクティベーション分布を保存するために保持しておく。
-        return z
-
-    # クロスエントロピー誤差を用いる場合は引数のdoutは使用されない
-    def backward(self, dout):
-        dout = self.activation.backward(dout)
-        dout = self.affine.backward(dout)
-        return dout
+class NormalWeight:
+    def __init__(self, stddev):
+        self.stddev = stddev
+    def get_stddev(self):
+        return self.stddev
 
 ##################################################
 # 以下、各レイヤー内の個別レイヤーの実装。
 # ※注意：ソフトマックスレイヤーだけ、forwardメソッドに教師データが必要。
 # 個別レイヤーのforwardメソッドには不要だが造りを合わせておく。
 ##################################################
+##################################################
+# Affineレイヤー（線形変換）
+# 【前提】
+#   ・入力の第1次元はバッチ軸であること。
+#   ・CNNで使用される場合にはforwardの入力xがテンソルである場合もあるので、2次元化すること。
+##################################################
 class Affine:
-    def __init__(self, W, B):
-        self.W = W
-        self.B = B
+    def __init__(self, crnt_size=100, weight=NormalWeight(0.01)):
+        self.crnt_size = crnt_size
+        self.weight = weight
+
+        self.W = None
+        self.B = None
         self.dLdW = None
         self.dLdB = None
-        self.x = None
+
+        self.is_input_4d = False
+        self.x2d = None
+        self.batch_size = None
+        self.channel_size = None
+        self.height = None
+        self.width = None
+        self.prev_size = None
+
         self.numerical_dLdW = None
         self.numerical_dLdB = None
 
-    # tは未使用。
-    # TODO debug 使わない変数は渡したくないので、抽象クラスを作って吸収したい。
-    def forward(self, x, t):
-        self.x = x
-        return np.dot(x, self.W) + self.B
+    # TODO tは未使用。使わない変数は渡したくないので、抽象クラスを作って吸収したい。
+    def forward(self, x, t, is_learning=False):
+        # テンソル対応。
+        if x.ndim == 2:
+            self.x2d = x
+            self.batch_size = x.shape[0]
+            self.prev_size = x.shape[1]
+        elif x.ndim == 4:
+            # 入力xが4次元テンソルの場合2次元化しておく。ただし、逆伝播のために、オリジナルの入力xの次元構造を覚えておく必要がある。
+            self.x2d = x.reshape(x.shape[0], -1)
+
+            self.batch_size, self.channel_size, self.height, self.width = x.shape
+            self.prev_size = self.channel_size * self.height * self.width
+            self.is_input_4d = True
+        else:
+            # 上記以外の次元構造は想定外。TODO エラーにするべきでは？
+            self.is_input_4d = None
+            pass
+
+        # 重み、バイアスの生成・初期化。
+        if self.W is None:
+            self.W, self.B = self.init_weight(self.prev_size, self.crnt_size)
+
+        # アフィン変換。
+        out = np.dot(self.x2d, self.W) + self.B
+        return out
 
     def backward(self, dout):
-        self.dLdW = np.dot(self.x.T, dout)
+        self.dLdW = np.dot(self.x2d.T, dout)
         self.dLdB = np.sum(dout, axis=0)
-        return np.dot(dout, self.W.T)
+        dout = np.dot(dout, self.W.T)
+        
+        if self.is_input_4d:
+            dout = dout.reshape(self.batch_size, self.channel_size, self.height, self.width)
+
+        return dout
+
+    def init_weight(self, prev_size=784, crnt_size=100):
+        weight = np.random.randn(prev_size, crnt_size) * self.weight.get_stddev()
+        bias = np.zeros(crnt_size)
+        return weight, bias
+
 
 class Sigmoid:
     def __init__(self):
@@ -119,7 +102,7 @@ class Sigmoid:
 
     # tは未使用。
     # TODO debug 使わない変数は渡したくないので、抽象クラスを作って吸収したい。
-    def forward(self, x, t):
+    def forward(self, x, t, is_learning=False):
         self.out = 1.0 / (1.0 + np.exp(-x))
         return self.out
 
@@ -133,7 +116,7 @@ class Tanh:
 
     # tは未使用。
     # TODO debug 使わない変数は渡したくないので、抽象クラスを作って吸収したい。
-    def forward(self, x, t):
+    def forward(self, x, t, is_learning=False):
         self.out = np.tanh(x)
         return self.out
 
@@ -144,16 +127,51 @@ class ReLU:
     def __init__(self):
         self.mask = None
 
+        self.is_input_4d = False
+        self.x2d = None
+        self.batch_size = None
+        self.channel_size = None
+        self.height = None
+        self.width = None
+        self.prev_size = None
+
     # tは未使用。
     # TODO debug 使わない変数は渡したくないので、抽象クラスを作って吸収したい。
-    def forward(self, x, t):
-        self.mask = (x <= 0)
-        out = x.copy()
+    def forward(self, x, t, is_learning=False):
+        # テンソル対応。
+        if x.ndim == 2:
+            self.x2d = x
+        elif x.ndim == 4:
+            # 入力xが4次元テンソルの場合2次元化しておく。ただし、逆伝播のために、オリジナルの入力xの次元構造を覚えておく必要がある。
+            self.x2d = x.reshape(x.shape[0], -1)
+
+            self.is_input_4d = True
+            self.batch_size, self.channel_size, self.height, self.width = x.shape
+            self.prev_size = self.channel_size * self.height * self.width
+        else:
+            # 上記以外の次元構造は想定外。TODO エラーにするべきでは？
+            self.is_input_4d = None
+            pass
+
+        self.mask = (self.x2d <= 0)
+        out = self.x2d.copy()  # 念のためコピー。入力の中身がどこで使われるか分からないので触りたくないため。
         out[self.mask] = 0
+
+        if self.is_input_4d:
+            out = out.reshape(self.batch_size, self.channel_size, self.height, self.width)
+
         return out
 
     def backward(self, dout):
+        # テンソル対応。
+        if self.is_input_4d:
+            dout = dout.reshape(self.batch_size, -1)
+
         dout[self.mask] = 0
+
+        if self.is_input_4d:
+            dout = dout.reshape(self.batch_size, self.channel_size, self.height, self.width)
+
         return dout
 
 class SoftmaxWithLoss:
@@ -161,7 +179,7 @@ class SoftmaxWithLoss:
         self.y = None
         self.t = None
 
-    def forward(self, x, t):
+    def forward(self, x, t, is_learning=False):
         self.y = self.softmax(x)
         self.t = t
         return self.y
@@ -169,8 +187,8 @@ class SoftmaxWithLoss:
     def backward(self, dout):
         # 活性化関数がソフトマックス関数で、且つ、損失関数がクロスエントロピー誤差関数の場合のみ、y-tになる。doutは未使用。
         # よって、損失関数として他の関数を使用する場合はこの式は成立しないので注意。
-        dLdx = (self.y - self.t) / self.y.shape[0]
-        return dLdx
+        dLdX = (self.y - self.t) / self.y.shape[0]
+        return dLdX
 
     def softmax(self, x):
         # そもそもxが1次元配列である場合は和を取る方向を指定しない。
@@ -178,11 +196,15 @@ class SoftmaxWithLoss:
             x = x - np.max(x)
             return np.exp(x) / np.sum(np.exp(x))
 
-        if x.ndim == 2:
+        elif x.ndim == 2:
             x = x.T
             x = x - np.max(x, axis=0)
             y = np.exp(x) / np.sum(np.exp(x), axis=0)
             return y.T
+
+        else:
+            # 上記以外の次元構造は想定外。TODO エラーにするべきでは？
+            return None
 
 class DropoutParams:
     def __init__(self, input_retain_rate=0.8, hidden_retain_rate=0.5):
@@ -355,15 +377,6 @@ class BatchNormal:
 
         self.moving_ex = None  #  E[x]の移動平均（xはD個のベクトル）
         self.moving_varx = None  #  Var[x]の移動平均（xはD個のベクトル）
-        # TODO ↓不要になったのでは？
-        # self.moving_iter = 0  # 移動平均の計算個数。ミニバッチ学習ごとに更新。
-
-    # TODO ↓不要になったのでは？
-    # def increment_moving_iter(self):
-    #     self.moving_iter += 1
-    #
-    # def reset_moving_iter(self):
-    #     self.moving_iter = 0
 
     # 順伝播。
     # 入力データxの行方向にはミニバッチサイズ分だけの処理対象データが並んでいるとする。N個とする。
@@ -471,3 +484,92 @@ class BatchNormal:
         dout = dLdX1 + dLdX2
 
         return dout
+
+##################################################
+# 隠れ層クラス
+##################################################
+class HiddenLayer:
+    def __init__(self, W, B, actfunc, batch_normal_params=None, input_dropout=None, hidden_dropout=None):
+        self.affine = Affine(W, B)
+        self.activation = actfunc
+        self.act_dist = None
+
+        self.input_dropout = input_dropout
+        self.hidden_dropout = hidden_dropout
+
+        self.batch_normal_params = batch_normal_params
+        self.batch_normal = None
+        if self.batch_normal_params is not None:
+            self.batch_normal = BatchNormal(self.batch_normal_params)
+
+    def forward(self, x, t, is_learning=False):
+        z = x
+
+        # 入力層のノードのドロップアウト。
+        if self.input_dropout is not None:
+            z = self.input_dropout.forward(z, t, is_learning)
+
+        # アフィン変換。
+        z = self.affine.forward(z, t)
+
+        # バッチ正規化。アフィン変換と活性化の間。
+        if self.batch_normal_params is not None:
+            z = self.batch_normal.forward(z, is_learning)
+
+        # 活性化。
+        z = self.activation.forward(z, t)
+
+        # 隠れ層のノードのドロップアウト。活性化の後。
+        if self.hidden_dropout is not None:
+            z = self.hidden_dropout.forward(z, t, is_learning)
+
+        # アクティベーション分布を見るために保持。
+        self.act_dist = z
+
+        return z
+
+    def backward(self, dout):
+        # 隠れ層のノードのドロップアウトの逆伝播。
+        if self.hidden_dropout is not None:
+            dout = self.hidden_dropout.backward(dout)
+
+        # 活性化の逆伝播。
+        dout = self.activation.backward(dout)
+
+        # バッチ正規化の逆伝播。
+        if self.batch_normal is not None:
+            dout = self.batch_normal.backward(dout)
+
+        # アフィン変換の逆伝播。
+        dout = self.affine.backward(dout)
+
+        # 入力層のノードのドロップアウトの逆伝播。
+        if self.input_dropout is not None:
+            dout = self.input_dropout.backward(dout)
+
+        return dout
+
+##################################################
+# 出力層クラス
+##################################################
+class LastLayer:
+    def __init__(self, W, B, actfunc):
+        self.affine = Affine(W, B)
+        self.activation = actfunc
+        self.act_dist = None
+
+    # is_learningは未使用。HiddenLayerクラスと形を合わせただけ。
+    # TODO debug 使わない変数は渡したくないので、抽象クラスを作って吸収したい。
+    def forward(self, x, t, is_learning=False):
+        a = self.affine.forward(x, t)
+        z = self.activation.forward(a, t)
+        self.act_dist = z  # アクティベーション分布を保存するために保持しておく。
+        return z
+
+    # クロスエントロピー誤差を用いる場合は引数のdoutは使用されない
+    def backward(self, dout):
+        dout = self.activation.backward(dout)
+        dout = self.affine.backward(dout)
+        return dout
+
+
