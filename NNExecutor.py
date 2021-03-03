@@ -51,8 +51,8 @@ class NNExecutor:
                 Conv(FN=4, FH=2, FW=2, padding=0, stride=1, weight=NormalWeight(stddev=0.01)),
                 # 27x27 ... (28+2*0-2)/1+1=27
                 ReLU(),
-                MaxPool(FH=2, FW=2, padding=0, stride=1),
-                # 26x26 ... (27+2*0-2)/1+1=26
+                MaxPool(FH=3, FW=3, padding=0, stride=3),
+                # 9x9 ... (27+2*0-3)/3+1=9
 
                 Affine(node_size=100, weight=HeWeight()),
                 ReLU(),
