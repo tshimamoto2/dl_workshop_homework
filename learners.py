@@ -1,6 +1,7 @@
 import sys
 import numpy as np
 from optimizers import SGD
+import csv
 
 class EarlyStoppingParams:
     def __init__(self, early_stopping_patience=10):
@@ -151,6 +152,7 @@ class KFoldCrossValidation:
         l_accuracy_list = []
         v_loss_list = []
         v_accuracy_list = []
+        perform_csv_list = []
 
         # 早期終了用の前エポックでの損失の初期化。前エポックの損失よりも低くなれば更新するので、floatの最大値を初期値としておく。
         prev_loss = sys.float_info.max
@@ -192,6 +194,8 @@ class KFoldCrossValidation:
             print("★epoch[{0}]終了：l_loss={1:.4f}, l_accuracy={2:.4f}, v_loss={3:.4f}, v_accuracy={4:.4f}".format(k, l_loss, l_accuracy, v_loss, v_accuracy))
             # print("★epoch[{0}]終了 loss={1:.4f}, accuracy={2:.4f}".format(k, v_loss, v_accuracy))
 
+            perform_csv_list.append(list([k, "{0:.4f}".format(l_loss), "{0:.4f}".format(l_accuracy), "{0:.4f}".format(v_loss), "{0:.4f}".format(v_accuracy)]))
+
             # 早期終了判定。
             if self.nn.early_stopping_params is not None:
                 is_stop, prev_loss, worsen_count = is_early_stopping(self.nn.early_stopping_params, prev_loss, v_loss, worsen_count)
@@ -208,4 +212,11 @@ class KFoldCrossValidation:
         # print("★kfold_num={0:3d}: Avg.Loss={1:.4f}, Avg.Accuracy={2:.4f}, Max.Accuracy={3:.4f}, Argmax={4}".format(
         #     self.kfold_num, np.average(v_loss_list), np.average(accuracy_list), np.max(accuracy_list), np.argmax(accuracy_list)))
         # print()
+
+        # 推移の保存
+        with open('perform.csv', 'w') as f:
+            w = csv.writer(f, lineterminator='\n')
+            w.writerow(list(["epoch", "l_loss", "l_accuracy", "v_loss", "v_accuracy"]))
+            for k in range(self.kfold_num):
+                w.writerow(perform_csv_list[k])
 

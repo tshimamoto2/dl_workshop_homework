@@ -47,7 +47,7 @@ class DNN:
 
     def init_weight(self):
         # TODO debug デバッグしやすさのため、再現性があるように指定。
-        np.random.seed(1)
+        np.random.seed(1234)
         self.W = []  # 各層の重み配列。要素のインデックスは、層のインデックスと一致。
         self.B = []  # 各層のバイアス配列。要素のインデックスは、層のインデックスと一致。
         prev_size = self.input_size
