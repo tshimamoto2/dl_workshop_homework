@@ -1,6 +1,5 @@
 import numpy as np
-from layers import HiddenLayer, LastLayer, SoftmaxWithLoss, Sigmoid, Tanh, ReLU, BatchNormal, Dropout
-from convolutions import Conv, MaxPool
+from layers import HiddenLayer, LastLayer, SoftmaxWithLoss, Sigmoid, Tanh, ReLU, BatchNormal, Dropout, Conv, MaxPool
 import pickle
 
 class CNN:
@@ -15,11 +14,12 @@ class CNN:
 
         self.layers = layers
         self.learner = learner
-        self.learner.set_NN(self)
         self.loss_func = loss_func
         self.regularization = regularization
         # self.dropout_params = dropout_params
         # self.batch_normal_params = batch_normal_params
+
+        self.learner.set_NN(self)
 
     ###############################
     # fit method
@@ -35,13 +35,6 @@ class CNN:
     def fit(self, train_data, train_label):
         # 学習。
         self.learner.learn(train_data, train_label)
-
-    # Convレイヤーのフィルターの初期化。
-    def init_weight(self, in_shape):
-        for i, layer in enumerate(self.layers):
-            if layer.__class__ == Conv.__class__:
-                layer.init(in_shape)
-                channel_size = layer.FN
 
     def gradient(self, x, t):
         # print("★勾配計算")

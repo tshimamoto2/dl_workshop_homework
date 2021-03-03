@@ -1,18 +1,11 @@
 import numpy as np
-from layers import Affine
-from convolutions import Conv
-
-def has_weight(layer):
-    if (isinstance(layer, Affine)) | (isinstance(layer, Conv)):
-        return True
-    return False
 
 class SGD:
     def __init__(self, learning_rate=0.01):
         self.learning_rate = learning_rate
 
     def update(self, nn):
-        for i, layer in enumerate(nn.layers):
+        for layer in nn.layers:
             if layer.has_weight() == False:
                 continue
             # CNN対応版。
@@ -22,7 +15,6 @@ class SGD:
             # layer.affine.W -= self.learning_rate * layer.affine.dLdW
             # layer.affine.B -= self.learning_rate * layer.affine.dLdB
 
-# TODO CNN対応版にすること。
 class Momentum:
     def __init__(self, learning_rate=0.01, decay_rate=0.9):
         self.learning_rate = learning_rate
@@ -34,17 +26,20 @@ class Momentum:
         if self.v_W is None:  # このときself.v_BもNoneであること。
             self.v_W = []
             self.v_B = []
-            for i, layer in enumerate(nn.layers):
+            i = 0
+            for layer in nn.layers:
                 if layer.has_weight() == False:
                     continue
                 # CNN対応版。
                 self.v_W.append(np.zeros_like(layer.W))
                 self.v_B.append(np.zeros_like(layer.B))
+                i += 1
                 # DNN対応版。
                 # self.v_W.append(np.zeros_like(layer.affine.W))
                 # self.v_B.append(np.zeros_like(layer.affine.B))
 
-        for i, layer in enumerate(nn.layers):
+        i = 0
+        for layer in nn.layers:
             if layer.has_weight() == False:
                 continue
             # CNN対応版。
@@ -52,6 +47,7 @@ class Momentum:
             self.v_B[i] = self.decay_rate * self.v_B[i] - self.learning_rate * layer.dLdB
             layer.W += self.v_W[i]
             layer.B += self.v_B[i]
+            i += 1
             # DNN対応版。
             # self.v_W[i] = self.decay_rate * self.v_W[i] - self.learning_rate * layer.affine.dLdW
             # self.v_B[i] = self.decay_rate * self.v_B[i] - self.learning_rate * layer.affine.dLdB
@@ -226,23 +222,27 @@ class RMSProp:
         if self.h_W is None:  # このときself.h_BもNoneであること。
             self.h_W = []
             self.h_B = []
-            for i, layer in enumerate(nn.layers):
+            i = 0
+            for layer in nn.layers:
                 if layer.has_weight() == False:
                     continue
                 # CNN対応版。
                 self.h_W.append(np.zeros_like(layer.W))
                 self.h_B.append(np.zeros_like(layer.B))
+                i += 1
                 # DNN対応版。
                 # self.h_W.append(np.zeros_like(layer.affine.W))
                 # self.h_B.append(np.zeros_like(layer.affine.B))
 
-        for i, layer in enumerate(nn.layers):
+        i = 0
+        for layer in nn.layers:
             if layer.has_weight() == False:
                 continue
             # CNN対応版。
             self.h_W[i] = self.h_W[i] + layer.dLdW * layer.dLdW
             layer.W -= self.learning_rate / (np.sqrt(self.h_W[i]) + self.eps) * layer.dLdW
             layer.B -= self.learning_rate / (np.sqrt(self.h_B[i]) + self.eps) * layer.dLdB
+            i += 1
             # DNN対応版。
             # self.h_W[i] = self.h_W[i] + layer.affine.dLdW * layer.affine.dLdW
             # layer.affine.W -= self.learning_rate / (np.sqrt(self.h_W[i]) + self.eps) * layer.affine.dLdW
@@ -268,7 +268,9 @@ class Adam:
             self.m_B = []
             self.v_W = []
             self.v_B = []
-            for i, layer in enumerate(nn.layers):
+
+            i = 0
+            for layer in nn.layers:
                 if layer.has_weight() == False:
                     continue
                 # CNN対応版。
@@ -276,13 +278,15 @@ class Adam:
                 self.m_B.append(np.zeros_like(layer.B))
                 self.v_W.append(np.zeros_like(layer.W))
                 self.v_B.append(np.zeros_like(layer.B))
+                i += 1
                 # DNN対応版。
                 # self.m_W.append(np.zeros_like(layer.affine.W))
                 # self.m_B.append(np.zeros_like(layer.affine.B))
                 # self.v_W.append(np.zeros_like(layer.affine.W))
                 # self.v_B.append(np.zeros_like(layer.affine.B))
 
-        for i, layer in enumerate(nn.layers):
+        i = 0
+        for layer in nn.layers:
             if layer.has_weight() == False:
                 continue
             # CNN対応版。
@@ -301,6 +305,7 @@ class Adam:
             layer.W -= self.learning_rate / (np.sqrt(vt_hat_W) + self.eps) * mt_hat_W
             layer.B -= self.learning_rate / (np.sqrt(vt_hat_B) + self.eps) * mt_hat_B
 
+            i += 1
             # DNN対応版。
             # self.m_W[i] = self.decay_rate1 * self.m_W[i] + (1.0 - self.decay_rate1) * layer.affine.dLdW
             # self.m_B[i] = self.decay_rate1 * self.m_B[i] + (1.0 - self.decay_rate1) * layer.affine.dLdB
@@ -329,17 +334,21 @@ class NAG:
         if self.v_W is None:  # このときself.v_BもNoneであること。
             self.v_W = []
             self.v_B = []
-            for i, layer in enumerate(nn.layers):
+
+            i = 0
+            for layer in nn.layers:
                 if layer.has_weight() == False:
                     continue
                 # CNN対応版。
                 self.v_W.append(np.zeros_like(layer.W))
                 self.v_B.append(np.zeros_like(layer.B))
+                i += 1
                 # DNN対応版。
                 # self.v_W.append(np.zeros_like(layer.affine.W))
                 # self.v_B.append(np.zeros_like(layer.affine.B))
 
-        for i, layer in enumerate(nn.layers):
+        i = 0
+        for layer in nn.layers:
             if layer.has_weight() == False:
                 continue
             # CNN対応版。
@@ -347,6 +356,7 @@ class NAG:
             layer.B += self.decay_rate**2 * self.v_B[i] - (1 + self.decay_rate) * self.learning_rate * layer.dLdB
             self.v_W[i] = self.decay_rate * self.v_W[i] - self.learning_rate * layer.dLdW
             self.v_B[i] = self.decay_rate * self.v_B[i] - self.learning_rate * layer.dLdB
+            i += 1
             # DNN対応版。
             # layer.affine.W += self.decay_rate**2 * self.v_W[i] - (1 + self.decay_rate) * self.learning_rate * layer.affine.dLdW
             # layer.affine.B += self.decay_rate**2 * self.v_B[i] - (1 + self.decay_rate) * self.learning_rate * layer.affine.dLdB

@@ -2,12 +2,11 @@ import numpy as np
 import pickle
 from DNN import DNN
 from CNN import CNN
-from layers import HiddenLayer, LastLayer, Affine, Sigmoid, Tanh, ReLU, SoftmaxWithLoss, DropoutParams, BatchNormalParams, XavierWeight, HeWeight, NormalWeight
+from layers import HiddenLayer, LastLayer, Affine, Sigmoid, Tanh, ReLU, SoftmaxWithLoss, DropoutParams, Dropout, BatchNormalParams, BatchNormal, XavierWeight, HeWeight, NormalWeight, Conv, MaxPool
 from losses import CrossEntropyError
 from learners import MiniBatch, KFoldCrossValidation, EarlyStoppingParams
 from optimizers import SGD, Momentum, AdaGrad, AdaDelta, RMSProp, Adam, NAG
 from regularizations import L2
-from convolutions import Conv, MaxPool
 
 class NNExecutor:
     def __init__(self):
@@ -37,6 +36,9 @@ class NNExecutor:
             model = pickle.load(f)
         return model
 
+    ##################################################
+    # CNNモデルの生成。
+    ##################################################
     def create_CNN(self):
         # TODO レイヤーリストをノードの個数にせず、各レイヤークラスのインスタンスを並べることにする。
         # よって、やろうと思えばDNNとして動かすことも可能なように作ること。
@@ -44,34 +46,33 @@ class NNExecutor:
         # （CNN例）layers=[Conv(), ReLU(), Pool(), Affine(), ReLU(), Affine(), Dropout(), SoftmaxWithLoss()],
         model = CNN(layers=[
                 # 28x28
-                Conv(FN=16, FH=3, FW=3, padding=1, stride=1, weight=NormalWeight(stddev=0.01)),
-                # 28x28 ... (28+2*1-3)/1+1=28
+                Conv(FN=16, FH=3, FW=3, padding=0, stride=1, weight=NormalWeight(stddev=0.01)),
+                # 26x26 ... (28+2*0-3)/1+1=26
                 ReLU(),
-                MaxPool(FH=2, FW=2, padding=0, stride=2),
-                # 14x14 ... (28+2*0-2)/2+1=14
-                Conv(FN=32, FH=3, FW=3, padding=1, stride=1, weight=NormalWeight(stddev=0.01)),
-                # 14x14 ... (14+2*1-3)/1+1=14
-                ReLU(),
-                MaxPool(FH=2, FW=2, padding=0, stride=2),
-                # 7x7 ... (14+2*0-2)/2+1=7
+                MaxPool(FH=2, FW=2, padding=0, stride=1),
+                # 25x25 ... (26+2*0-2)/1+1=25
+
                 Affine(node_size=100, weight=HeWeight()),
                 ReLU(),
-                Affine(node_size=5, weight=HeWeight()),
+
+                Affine(node_size=5, weight=NormalWeight(stddev=0.01)),
                 SoftmaxWithLoss()
             ],
             loss_func=CrossEntropyError(),
-            # learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=SGD(learning_rate=0.01)),
-            learner=MiniBatch(epoch_num=50, mini_batch_size=20, optimizer=AdaGrad(learning_rate=0.01)),
+            # learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=SGD(learning_rate=0.01)),   # 全く学習が進まない。
+            # learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=Momentum(learning_rate=0.01, decay_rate=0.9)),
+            learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=AdaGrad(learning_rate=0.01)),  # 全く学習が進まない。
+            # learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=AdaDelta(decay_rate=0.9)),  # 全く学習が進まない。
+            # learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=Adam(learning_rate=0.01, decay_rate1=0.9, decay_rate2=0.9999)),  # 全く学習が進まない。
+            # 〇learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=NAG(learning_rate=0.01, decay_rate=0.9)),
             # learner=KFoldCrossValidation(kfold_num=10, optimizer=SGD(learning_rate=0.01)),
             # learner=KFoldCrossValidation(kfold_num=20, optimizer=AdaDelta(decay_rate=0.9)),
             regularization=L2(lmda=0.005),
-            # dropout_params=DropoutParams(input_retain_rate=0.8, hidden_retain_rate=0.5),
-            # batch_normal_params=BatchNormalParams(gamma=2.0, beta=0.0, moving_decay=0.9),
         )
         return model
 
     ##################################################
-    # DNNモデルの生成。勉強のため、手動でハイパーパラメータチューニングを行った。
+    # DNNモデルの生成。
     ##################################################
     def create_DNN(self):
         model = None
