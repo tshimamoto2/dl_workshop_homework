@@ -309,12 +309,12 @@ class NNExecutor:
         # 　⇒Momentumよりもさらに早く最大正解率100%に到達した。
         # ★Avg.loss=0.103, Avg.accuracy=0.964, Max.accuracy=1.000, Argmax=75 | Avg.test_loss=0.232, Avg.test_accuracy=0.924, Max.test_accuracy=0.960, Argmax=23
         # ※白黒反転時：★Avg.loss=0.001, Avg.accuracy=1.000, Max.accuracy=1.000, Argmax=4 | Avg.test_loss=0.120, Avg.test_accuracy=0.965, Max.test_accuracy=0.970, Argmax=0
-        # self.nn = DNN(input_size=784,
-        #               layer_size_list=[100, 100, 5],
-        #               hidden_actfunc=ReLU(),
-        #               output_actfunc=SoftmaxWithLoss(),
-        #               loss_func=CrossEntropyError(),
-        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)))
+        self.nn = DNN(input_size=784,
+                      layer_size_list=[100, 100, 5],
+                      hidden_actfunc=ReLU(),
+                      output_actfunc=SoftmaxWithLoss(),
+                      loss_func=CrossEntropyError(),
+                      learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)))
 
         # 同上、AdaDelta　⇒AdaGradと同程度に早く最大正解率100%に到達した。
         # ★Avg.loss=0.021, Avg.accuracy=0.991, Max.accuracy=1.000, Argmax=17 | Avg.test_loss=0.244, Avg.test_accuracy=0.958, Max.test_accuracy=0.970, Argmax=25
@@ -423,13 +423,13 @@ class NNExecutor:
         # AdaDelta ⇒AdaGradと同様、すでに第1エポックで最大正解率に達した。最も早い。★★★
         # ★kfold_num=100: Avg.Loss=0.012, Avg.Accuracy=0.995, Max.Accuracy=1.000, Argmax=2
         # ※白黒反転時：★kfold_num=100: Avg.Loss=0.001, Avg.Accuracy=1.000, Max.Accuracy=1.000, Argmax=0
-        self.nn = DNN(input_size=784,
-                      layer_size_list=[100, 100, 5],
-                      hidden_actfunc=Tanh(),
-                      output_actfunc=SoftmaxWithLoss(),
-                      loss_func=CrossEntropyError(),
-                      init_weight_stddev=0.01,
-                      learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)))
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 5],
+        #               hidden_actfunc=Tanh(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               init_weight_stddev=0.01,
+        #               learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)))
 
         # RMSProp ⇒最大でも50%。
         # ★kfold_num=100: Avg.Loss=13.076, Avg.Accuracy=0.188, Max.Accuracy=0.600, Argmax=70
