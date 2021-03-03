@@ -52,7 +52,6 @@ class AdaGrad:
             layer.affine.W -= self.learning_rate * layer.affine.dLdW / np.sqrt(self.h_W[i] + self.eps)
             layer.affine.B -= self.learning_rate * layer.affine.dLdB / np.sqrt(self.h_B[i] + self.eps)
 
-# TODO 何回かのエポックで、dW、dBが発散してしまう。
 class AdaDelta:
     def __init__(self, decay_rate=0.9):
         self.decay_rate = decay_rate

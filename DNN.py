@@ -1,6 +1,6 @@
 import numpy as np
 from LearnedModel import LearnedModel
-from layers import HiddenLayer, LastLayer, Sigmoid, Tanh, ReLU, BatchNormal, SoftmaxWithLoss, CrossEntropyError
+from layers import HiddenLayer, LastLayer, Sigmoid, Tanh, ReLU, BatchNormal, SoftmaxWithLoss, CrossEntropyError, L2
 from learners import MiniBatch, KFoldCrossValidation
 from optimizers import SGD
 import pickle
@@ -15,9 +15,10 @@ class DNN:
                  output_actfunc=SoftmaxWithLoss(),
                  loss_func=CrossEntropyError(),
                  init_weight_stddev=0.01,
-                 learner=MiniBatch(epoch_num=100, mini_batch_size=100, optimizer=SGD(learning_rate=0.01), is_numerical_gradient=False),
+                 learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=SGD(learning_rate=0.01), is_numerical_gradient=False),
                  init_weight_change=False,  # 重みの初期値について実験
-                 batch_normal=None  # バッチ正規化について実験
+                 batch_normal=None,  # バッチ正規化について実験
+                 regularization=None  # 正則化について実験
                  ):
 
         # LearnedModelとして保存したい引数の保持。
@@ -41,9 +42,11 @@ class DNN:
         self.learner.set_NN(self)
         self.init_weight_change = init_weight_change
         self.batch_normal = batch_normal
+        self.regularization = regularization
 
-        # TODO debug
-        # self.act_dist_already_saved = False
+        # TODO debug 提出時はNoneにすること。
+        self.act_dist = None
+        # self.act_dist = ActivationDistribution()
 
     def init_weight(self):
         # TODO debug デバッグしやすさのため、再現性があるように指定。
@@ -94,27 +97,6 @@ class DNN:
         # 学習。
         self.learner.learn(train_data, train_label)
 
-        # 以下、クラスにする前の古いコード。ただし実験コメントがあるので一旦残しておく。
-        #self.learn_mini_batch(train_data, train_label, numerical_gradient)  # ミニバッチ学習。
-
-        # 以下k分割交差検証　※kfold_numは訓練データ数1000を割り切るように設定すること。
-        # 10分割　⇒学習進まず。
-        # ★kfold_num= 10: Avg.Loss=1.609, Avg.Accuracy=0.197, Max.Accuracy=0.290, Argmax=9
-        #self.learn_cross_validation(train_data, train_label, kfold_num=10)
-
-        # 20分割　⇒70%程度までは進んだ。
-        # ★kfold_num= 20: Avg.Loss=1.609, Avg.Accuracy=0.306, Max.Accuracy=0.700, Argmax=19
-        #self.learn_cross_validation(train_data, train_label, kfold_num=20)
-
-        # 50分割　⇒エポック40（インデックスは39）で100%になった。⇒過学習の気配。。。
-        # ★kfold_num= 50: Avg.Loss=1.065, Avg.Accuracy=0.630, Max.Accuracy=1.000, Argmax=39
-        # self.learn_cross_validation(train_data, train_label, kfold_num=50)
-
-        # 100分割　⇒エポック19（インデックスは18）で100%になった。⇒過学習の気配。。。
-        # ★kfold_num = 100: Avg.Loss = 0.268, Avg.Accuracy = 0.906, Max.Accuracy = 1.000, Argmax = 18
-        # ⇒一旦これで提出してみる。
-        #self.learn_cross_validation(train_data, train_label, kfold_num=100)
-
     def gradient(self, x, t):
         # 順伝播。
         y, loss, accuracy = self.predict(x, t)
@@ -128,29 +110,29 @@ class DNN:
     # 順伝播による出力層、損失、精度の算出。
     # 学習済みモデル、学習済みレイヤーが決まっていることが前提。
     def predict(self, x, t):
-        # TODO debug アクティベーション分布
-        # act_dist = {}
-
         # 順伝播。
         z = x
         for i, layer in enumerate(self.layers):
             z = layer.forward(z, t)
+            # 各レイヤーのアクティベーション分布を保持。
+            if self.act_dist is not None:
+                self.act_dist.put("layer" + str(i), layer.act_dist)
 
-            # TODO debug これを入れるとスキルアップAI様への提出時に実行エラーとなるのでコメントアウト。
-            # act_dist["layer" + str(i)] = layer.act_dist
-
-        # TODO debug これを入れるとスキルアップAI様への提出時に実行エラーとなるのでコメントアウト。
-        # アクティベーション分布を見るために、アフィン変換の値を保存。predictはいろんなメソッドから呼ばれるので1回だけ。
-        # if self.act_dist_already_saved == False:
-        #     with open("./act_dist.pkl", 'wb') as f:
-        #         pickle.dump(act_dist, f)
-        #     self.act_dist_already_saved = True
+        # 全レイヤーのアクティベーション分布を保存。
+        if self.act_dist is not None:
+            self.act_dist.finish_1st()
+            self.act_dist.dump()
 
         # 教材での説明と変数名を合わせただけ。
         y = z
 
+        # 正則化。
+        regular = 0.0
+        if self.regularization is not None:
+            regular = self.regularization.regular(self.layers)
+
         # 損失、精度の計算。
-        loss = self.loss_func.loss(y, t)
+        loss = self.loss_func.loss(y, t) + regular
         accuracy = self.accuracy(y, t)
 
         return y, loss, accuracy
@@ -209,3 +191,39 @@ class DNN:
             it.iternext()
 
         return grad
+
+# TODO debug用：アクティベーション分布を保存するクラス。
+class ActivationDistribution:
+    savepath_1 = "./act_dist_1.pkl"  # 1st epoch
+    savepath_999 = "./act_dist_999.pkl"  # last epoch
+
+    def __init__(self):
+        self.act_dist_1_already_saved = False
+        self.is_1st_done = False
+
+        self.act_dist_1 = {}
+        self.act_dist_999 = {}
+
+    def put(self, key, dist):
+        if self.is_1st_done == False:
+            self.act_dist_1[key] = dist
+
+        # TODO 最後になるまで毎回上書きしているので無駄。
+        self.act_dist_999[key] = dist
+
+    def finish_1st(self):
+        self.is_1st_done = True
+
+    def dump(self):
+        # 1st epoch
+        if self.act_dist_1_already_saved == False:
+            with open(ActivationDistribution.savepath_1, 'wb') as f:
+                pickle.dump(self.act_dist_1, f)
+                f.close()
+                self.act_dist_1_already_saved = True
+
+        # TODO 最後になるまで毎回上書きしているので無駄。
+        # last epoch
+        with open(ActivationDistribution.savepath_999, 'wb') as f:
+            pickle.dump(self.act_dist_999, f)
+            f.close()

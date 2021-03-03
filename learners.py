@@ -53,6 +53,9 @@ class MiniBatch:
                     self.nn.numerical_gradient(train_data[mask], train_label[mask])
 
                 # 重みの更新。
+                # ただし、その前に、正則化がある場合は各レイヤーのAffineのdLdWを正則化項の偏微分で更新しておく。
+                if self.nn.regularization is not None:
+                    self.nn.regularization.update_dLdW(self.nn.layers)
                 self.optimizer.update(self.nn)
 
             # エポックごとの精度を表示。
@@ -75,11 +78,11 @@ class MiniBatch:
         ))
         print()
 
-        def update_weight(self):
-            for i, layer in enumerate(self.layers):
-                # W = W - 学習率 * dLdW
-                layer.affine.W -= self.lm.learning_rate * layer.affine.dLdW
-                layer.affine.B -= self.lm.learning_rate * layer.affine.dLdB
+        # optimizerに移行。
+        # def update_weight(self):
+        #     for layer in self.layers:
+        #         layer.affine.W -= self.lm.learning_rate * layer.affine.dLdW
+        #         layer.affine.B -= self.lm.learning_rate * layer.affine.dLdB
 
 class KFoldCrossValidation:
     def __init__(self, kfold_num, optimizer=SGD(learning_rate=0.01)):
@@ -120,6 +123,9 @@ class KFoldCrossValidation:
                 self.nn.gradient(split_data[j], split_label[j])
 
                 # 重みの更新。
+                # ただし、その前に、正則化がある場合は各レイヤーのAffineのdLdWを正則化項の偏微分で更新しておく。
+                if self.nn.regularization is not None:
+                    self.nn.regularization.update_dLdW(self.nn.layers)
                 self.optimizer.update(self.nn)
 
             # 取り分けておいた検証データを使ってエポックごとの精度を表示する。

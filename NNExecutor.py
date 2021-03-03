@@ -1,6 +1,6 @@
 import numpy as np
 from DNN import DNN
-from layers import Sigmoid, Tanh, ReLU, SoftmaxWithLoss, CrossEntropyError, BatchNormal
+from layers import Sigmoid, Tanh, ReLU, SoftmaxWithLoss, CrossEntropyError, BatchNormal, L2
 from learners import MiniBatch, KFoldCrossValidation
 from optimizers import SGD, Momentum, AdaGrad, AdaDelta, RMSProp, Adam, NAG
 
@@ -679,25 +679,12 @@ class NNExecutor:
         # 5層に増やした／init_weight_change=Trueを指定。
         # （元の実験）★kfold_num = 100: Avg.Loss = 0.001, Avg.Accuracy = 1.000, Max.Accuracy = 1.000, Argmax = 0
         # （初期値変更版）★kfold_num=100: Avg.Loss=0.000, Avg.Accuracy=1.000, Max.Accuracy=1.000, Argmax=0
-        #
-        # ★★★以下、スキルアップAI様保有のテストデータでの性能結果が97%を超過したことを示す通知メール。
         # --------------------------------------------------
-        # カタカナ5文字識別器 識別精度算出結果
-        # submit@skillupai.com
-        #
-        # To 自分, submit
-        # 島本達也 様
-        #
-        # ご提出ありがとうございます.
-        # 実行結果をご連絡致します.
-        #
-        # 講座名:dl_tokyo_2
-        # ファイル名:dl_tokyo_2_submit_katakana_SHIMAMOTO_TATSUYA_20180726.zip
-        # Test loss:0.1751423330705909
-        # Test accuracy:0.9735384615384616
-        #
-        # スキルアップAI 運営事務局
-        # submit@skillupai.com
+        # 以下テストデータでの結果：
+        #   講座名:dl_tokyo_2
+        #   ファイル名:dl_tokyo_2_submit_katakana_SHIMAMOTO_TATSUYA_20180726.zip
+        #   Test loss:0.1751423330705909
+        #   Test accuracy:0.9735384615384616
         # --------------------------------------------------
         # self.nn = DNN(input_size=784,
         #               layer_size_list=[100, 100, 100, 100, 5],
@@ -729,7 +716,16 @@ class NNExecutor:
         # 次に、Day4までの講義内容を実装した中で、
         # ミニバッチ学習を採用したモデルで最も性能が良かったモデル『Minibatch-ReLU-AdaGrad』について、
         # バッチ正規化を実施してみたらどうなるか？過学習は抑制されるか？
-        # （元の結果）★Avg.loss=0.001, Avg.accuracy=1.000, Max.accuracy=1.000, Argmax=4 | Avg.test_loss=0.120, Avg.test_accuracy=0.965, Max.test_accuracy=0.970, Argmax=0
+        # （元の結果：3層）★Avg.loss=0.001, Avg.accuracy=1.000, Max.accuracy=1.000, Argmax=4 | Avg.test_loss=0.120, Avg.test_accuracy=0.965, Max.test_accuracy=0.970, Argmax=0
+        # （元の結果：5層）★Avg.loss=0.091, Avg.accuracy=0.957, Max.accuracy=1.000, Argmax=59 | Avg.test_loss=0.223, Avg.test_accuracy=0.934, Max.test_accuracy=0.985, Argmax=59
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 100, 100, 5],
+        #               hidden_actfunc=ReLU(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01))
+        #               )
+
         # ↓
         # ●γ＝1.0、β＝0.0
         #   ★Avg.loss=0.158, Avg.accuracy=0.966, Max.accuracy=0.981, Argmax=21 | Avg.test_loss=0.195, Avg.test_accuracy=0.950, Max.test_accuracy=0.970, Argmax=17
@@ -755,20 +751,77 @@ class NNExecutor:
         # ▲γ＝10.0、β＝0.5
         #   ★Avg.loss=0.019, Avg.accuracy=0.996, Max.accuracy=1.000, Argmax=39 | Avg.test_loss=0.059, Avg.test_accuracy=0.985, Max.test_accuracy=0.990, Argmax=2
         #   ⇒γ＝10.0、β＝0.5は、平均損失がDay4のときのちょうど半分程度になった。
-        #
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 100, 100, 5],
+        #               hidden_actfunc=ReLU(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)),
+        #               batch_normal=BatchNormal(gamma=10.0, beta=0.5)
+        #               )
+
+        # # 10層にするとアクティベーション分布はどうなるか？
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 100, 100, 100, 100, 100, 100, 100, 5],
+        #               hidden_actfunc=ReLU(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)),
+        #               batch_normal=BatchNormal(gamma=10.0, beta=1.0)
+        #               # batch_normal=BatchNormal(gamma=10.0, beta=0.5)
+        #               )
+
         # ＜Tanhにした場合＞
         # ●γ＝10.0、β＝0.0
         #   ★Avg.loss=0.052, Avg.accuracy=0.988, Max.accuracy=0.998, Argmax=95 | Avg.test_loss=0.082, Avg.test_accuracy=0.980, Max.test_accuracy=0.995, Argmax=36
         # ▲γ＝10.0、β＝0.5
         #   ★Avg.loss=0.050, Avg.accuracy=0.987, Max.accuracy=0.998, Argmax=82 | Avg.test_loss=0.104, Avg.test_accuracy=0.973, Max.test_accuracy=0.985, Argmax=31
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 100, 100, 5],
+        #               hidden_actfunc=Tanh(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)),
+        #               batch_normal=BatchNormal(gamma=10.0, beta=0.5)
+        #               )
+
+        # 正則化（regularization）
+        # ■k分割交差検証での最良のモデル（明らかに過学習）：Kfold-Tanh-AdaDelta／3層
+        #   正則化なし：★kfold_num=100: Avg.Loss=0.001, Avg.Accuracy=1.000, Max.Accuracy=1.000, Argmax=0
+        #   lmda=0.01:★kfold_num=100: Avg.Loss=0.157, Avg.Accuracy=0.988, Max.Accuracy=1.000, Argmax=0
+        #   （↑提出したもので97.4%を記録したパターンのテストデータでのロスに最も近いので、これで提出してみる）
+        #   lmda=0.02:★kfold_num=100: Avg.Loss=0.273, Avg.Accuracy=0.982, Max.Accuracy=1.000, Argmax=0
+        #   lmda=0.05:★kfold_num=100: Avg.Loss=0.495, Avg.Accuracy=0.972, Max.Accuracy=1.000, Argmax=2
+        #   lmda=0.1:★kfold_num=100: Avg.Loss=0.783, Avg.Accuracy=0.958, Max.Accuracy=1.000, Argmax=2
+        #   lmda=0.2:★kfold_num=100: Avg.Loss=1.611, Avg.Accuracy=0.162, Max.Accuracy=0.500, Argmax=14
+        #   lmda=0.5:★kfold_num=100: Avg.Loss=1.611, Avg.Accuracy=0.162, Max.Accuracy=0.500, Argmax=14
+        #   lmda=1.0:★kfold_num=100: Avg.Loss=1.611, Avg.Accuracy=0.162, Max.Accuracy=0.500, Argmax=14
         self.nn = DNN(input_size=784,
-                      layer_size_list=[100, 100, 100, 100, 5],
-                      hidden_actfunc=ReLU(),
+                      layer_size_list=[100, 100, 5],
+                      hidden_actfunc=Tanh(),
                       output_actfunc=SoftmaxWithLoss(),
                       loss_func=CrossEntropyError(),
-                      learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)),
-                      batch_normal=BatchNormal(gamma=10.0, beta=0.5)
+                      init_weight_stddev=0.01,
+                      learner=KFoldCrossValidation(kfold_num=100, optimizer=AdaDelta(decay_rate=0.9)),
+                      regularization=L2(lmda=0.01)
                       )
+
+        # ■ミニバッチで最良のモデル：Minibatch-ReLU-AdaGrad／3層
+        #   正則化なし：★Avg.loss=0.001, Avg.accuracy=1.000, Max.accuracy=1.000, Argmax=4 | Avg.test_loss=0.120, Avg.test_accuracy=0.965, Max.test_accuracy=0.970, Argmax=0
+        #   lmda=0.01:★Avg.loss=0.131, Avg.accuracy=0.997, Max.accuracy=1.000, Argmax=32 | Avg.test_loss=0.220, Avg.test_accuracy=0.967, Max.test_accuracy=0.975, Argmax=16
+        #   lmda=0.05:★Avg.loss=0.486, Avg.accuracy=0.973, Max.accuracy=0.990, Argmax=34 | Avg.test_loss=0.581, Avg.test_accuracy=0.936, Max.test_accuracy=0.960, Argmax=10
+        #   lmda=0.1:★Avg.loss=1.609, Avg.accuracy=0.205, Max.accuracy=0.205, Argmax=8 | Avg.test_loss=1.611, Avg.test_accuracy=0.180, Max.test_accuracy=0.185, Argmax=0
+        #   lmda=1.0:★Avg.loss=1.609, Avg.accuracy=0.205, Max.accuracy=0.205, Argmax=10 | Avg.test_loss=1.611, Avg.test_accuracy=0.180, Max.test_accuracy=0.185, Argmax=0
+        #   lmda=10.0:★Avg.loss=1.609, Avg.accuracy=0.205, Max.accuracy=0.205, Argmax=10 | Avg.test_loss=1.611, Avg.test_accuracy=0.180, Max.test_accuracy=0.185, Argmax=0
+        # self.nn = DNN(input_size=784,
+        #               layer_size_list=[100, 100, 5],
+        #               hidden_actfunc=ReLU(),
+        #               output_actfunc=SoftmaxWithLoss(),
+        #               loss_func=CrossEntropyError(),
+        #               learner=MiniBatch(epoch_num=100, mini_batch_size=10, optimizer=AdaGrad(learning_rate=0.01)),
+        #               regularization=L2(lmda=0.05)
+        #               )
+
 
     def fit(self, train_data, train_label):
         self.nn.fit(train_data=train_data, train_label=train_label)
