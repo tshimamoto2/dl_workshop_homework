@@ -46,6 +46,8 @@ class DNN:
         # self.act_dist = ActivationDistribution()
 
     def init_weight(self):
+        # TODO debug デバッグしやすさのため、再現性があるように指定。
+        np.random.seed(1234)
         self.W = []  # 各層の重み配列。要素のインデックスは、層のインデックスと一致。
         self.B = []  # 各層のバイアス配列。要素のインデックスは、層のインデックスと一致。
         prev_size = self.input_size
@@ -70,10 +72,8 @@ class DNN:
                 #print("★標準偏差{0}の標準正規分布からの無作為抽出を行います。".format(self.init_weight_stddev))
                 pass
 
-            self.W.append(np.random.randn(prev_size, crnt_size).astype(np.float32) * stddev)
-            self.B.append(np.zeros(crnt_size).astype(np.float32))
-            # self.W.append(np.random.randn(prev_size, crnt_size) * stddev)
-            # self.B.append(np.zeros(crnt_size))
+            self.W.append(np.random.randn(prev_size, crnt_size) * stddev)
+            self.B.append(np.zeros(crnt_size))
             prev_size = crnt_size
 
     def init_layers(self):

@@ -1,25 +1,22 @@
 import numpy as np
-import pickle
 from DNN import DNN
-from CNN import CNN
-from layers import HiddenLayer, LastLayer, Affine, Sigmoid, Tanh, ReLU, SoftmaxWithLoss, DropoutParams, Dropout, BatchNormalParams, BatchNormal, XavierWeight, HeWeight, NormalWeight, Conv, MaxPool
+from layers import Sigmoid, Tanh, ReLU, SoftmaxWithLoss, DropoutParams, BatchNormalParams
 from losses import CrossEntropyError
 from learners import MiniBatch, KFoldCrossValidation, EarlyStoppingParams
 from optimizers import SGD, Momentum, AdaGrad, AdaDelta, RMSProp, Adam, NAG
 from regularizations import L2
+import pickle
 
 class NNExecutor:
     def __init__(self):
         self.nn = None
         pass
 
-    def fit(self, model_save_path, train_data, train_label, isCNN=False):
-        np.random.seed(2000)
-
-        if isCNN:
-            self.nn = self.create_CNN()
+    def fit(self, model_save_path, train_data, train_label, is_dnn=False):
+        if is_dnn:
+            self.nn = self.create_dnn()
         else:
-            self.nn = self.create_DNN()
+            self.nn = self.create_cnn()
 
         self.nn.fit(train_data=train_data, train_label=train_label)
         self.save_model(model_save_path)
@@ -38,52 +35,44 @@ class NNExecutor:
             model = pickle.load(f)
         return model
 
-    ##################################################
-    # CNNモデルの生成。
-    ##################################################
-    def create_CNN(self):
-        # TODO レイヤーリストをノードの個数にせず、各レイヤークラスのインスタンスを並べることにする。
-        # よって、やろうと思えばDNNとして動かすことも可能なように作ること。
-        # （DNN例）layers=[Dropout(), Affine(), BatchNormal(), ReLU(), Dropout(), Affine(), SoftmaxWithLoss()],
-        # （CNN例）layers=[Conv(), ReLU(), Pool(), Affine(), ReLU(), Affine(), Dropout(), SoftmaxWithLoss()],
-        model = CNN(layers=[
-                # 28x28
-                Conv(FN=16, FH=3, FW=3, padding=1, stride=1, weight=NormalWeight(stddev=0.01)),
-                # 28x28 ... (28+2*1-3)/1+1=28
-                ReLU(),
-                MaxPool(FH=2, FW=2, padding=0, stride=2),
+    # 誤差逆伝播法と数値微分の差異があるかどうかを見るためのデバッグ用メソッド。
+    # check_gradientの実行結果は以下。差異がないことが判明した。
+    # layer[0]: diff=4.4969488372317266e-10
+    # layer[1]: diff=5.936436439956446e-09
+    def check_gradient(self, train_data, train_label):
+        # self.nn = DNN(input_size=784, layer_size_list=[10, 5])
+        self.nn = DNN(input_size=784,
+                      layer_size_list=[10, 5],
+                      hidden_actfunc=ReLU(),
+                      output_actfunc=SoftmaxWithLoss(),
+                      loss_func=CrossEntropyError(),
+                      init_weight_stddev=0.01,
+                      learner=MiniBatch(epoch_num=10, mini_batch_size=100, optimizer=SGD(learning_rate=0.01), is_numerical_gradient=True))
 
-                # 14x14 ... (28+2*0-2)/2+1=14
-                Conv(FN=32, FH=3, FW=3, padding=1, stride=1, weight=NormalWeight(stddev=0.01)),
-                # 14x14 ... (14+2*1-3)/1+1=14
-                ReLU(),
-                MaxPool(FH=2, FW=2, padding=0, stride=2),
+        # 数値微分は計算量が多く処理時間がかかる（しばらく返ってこない）ため、
+        # 使用するデータ個数とエポック数を絞る。
+        x = train_data[:3]
+        t = train_label[:3]
 
-                # 7x7 ... (14+2*0-2)/2+1=7
-                Affine(node_size=100, weight=HeWeight()),
-                ReLU(),
-                Dropout(retain_rate=0.5),
+        # fitメソッドを動かすことにより、全レイヤーの（中のAffineレイヤー）のgradientとnumerical_gradientを実行してメモリに保持。
+        # ただし、numerical_gradient=Trueを指定しているので注意。
+        self.nn.fit(train_data=x, train_label=t)
+        #self.nn.fit(train_data=x, train_label=t, init_weight_stddev=0.01, epoch_num=3, mini_batch_size=100, learning_rate=0.01, numerical_gradient=True)
 
-                Affine(node_size=100, weight=HeWeight()),
-                ReLU(),
-                Dropout(retain_rate=0.5),
+        for i, layer in enumerate(self.nn.layers):
+            bg = layer.affine.dLdW
+            # print(bg)
+            ng = layer.affine.numerical_dLdW
+            # print(ng)
 
-                Affine(node_size=5, weight=NormalWeight(stddev=0.01)),
-                SoftmaxWithLoss()
-            ],
-            loss_func=CrossEntropyError(),
-            # learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=Momentum(learning_rate=0.01, decay_rate=0.9),
-            #                   early_stopping_params=EarlyStoppingParams(early_stopping_patience=5, eps=4)),
-            learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=AdaGrad(learning_rate=0.01),
-                              early_stopping_params=EarlyStoppingParams(early_stopping_patience=5, eps=4)),
-            regularization=L2(lmda=0.0005),
-        )
-        return model
+            # Wの各成分ごとの差異の絶対値を、全成分に渡って平均。
+            diff = np.average(np.abs(bg - ng))
+            print("layer[{0}]: diff={1}".format(i, diff))
 
     ##################################################
-    # DNNモデルの生成。
+    # DNNモデルの生成。勉強のため、手動でハイパーパラメータチューニングを行った。
     ##################################################
-    def create_DNN(self):
+    def create_dnn(self):
         model = None
 
         ##################################################
@@ -1194,57 +1183,32 @@ class NNExecutor:
         # Test loss:0.1584541231725537
         # Test accuracy:0.9627692307692308
         # ------------------------------
+        # model = DNN(input_size=784,
+        #             layer_size_list=[100, 100, 100, 100, 5],
+        #             hidden_actfunc=Tanh(),
+        #             output_actfunc=SoftmaxWithLoss(),
+        #             loss_func=CrossEntropyError(),
+        #             init_weight_stddev=0.01,
+        #             init_weight_change=True,
+        #             learner=KFoldCrossValidation(kfold_num=10, optimizer=AdaDelta(decay_rate=0.9)),
+        #             batch_normal_params=BatchNormalParams(gamma=2.0, beta=0.0, moving_decay=0.9),
+        #             dropout_params=DropoutParams(input_retain_rate=0.8, hidden_retain_rate=0.5),
+        #             )
+
+        # 実験No.17 Minibatch-ReLU-AdaGradで、L2正則化をやってみる。
         model = DNN(input_size=784,
-                    layer_size_list=[100, 100, 100, 100, 5],
-                    hidden_actfunc=Tanh(),
+                    layer_size_list=[100, 100, 5],
+                    hidden_actfunc=ReLU(),
                     output_actfunc=SoftmaxWithLoss(),
                     loss_func=CrossEntropyError(),
                     init_weight_stddev=0.01,
-                    init_weight_change=True,
-                    learner=KFoldCrossValidation(kfold_num=10, optimizer=AdaDelta(decay_rate=0.9)),
-                    batch_normal_params=BatchNormalParams(gamma=2.0, beta=0.0, moving_decay=0.9),
-                    dropout_params=DropoutParams(input_retain_rate=0.8, hidden_retain_rate=0.5),
+                    learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=AdaGrad(learning_rate=0.01)),
+                    regularization=L2(lmda=0.0005),
+                    dropout_params=DropoutParams(input_retain_rate=1.0, hidden_retain_rate=0.5),
                     )
+
 
         # ★上記いろいろと試してみたが、実験25が最もよかったが、それでも97.4%だった。
         #   ⇒DNNのロジックで性能を上げようとするのは無理があるのかもしれない。
 
         return model
-
-    ##############################
-    # 動作確認用メソッド
-    ##############################
-    # TODO このメソッドは提出時は不要。
-    # 誤差逆伝播法と数値微分の差異があるかどうかを見る。
-    # check_gradientの実行結果は以下。差異がないことが判明した。
-    # layer[0]: diff=4.4969488372317266e-10
-    # layer[1]: diff=5.936436439956446e-09
-    def check_gradient(self, train_data, train_label):
-        # self.nn = DNN(input_size=784, layer_size_list=[10, 5])
-        self.nn = DNN(input_size=784,
-                      layer_size_list=[10, 5],
-                      hidden_actfunc=ReLU(),
-                      output_actfunc=SoftmaxWithLoss(),
-                      loss_func=CrossEntropyError(),
-                      init_weight_stddev=0.01,
-                      learner=MiniBatch(epoch_num=10, mini_batch_size=100, optimizer=SGD(learning_rate=0.01), is_numerical_gradient=True))
-
-        # 数値微分は計算量が多く処理時間がかかる（しばらく返ってこない）ため、
-        # 使用するデータ個数とエポック数を絞る。
-        x = train_data[:3]
-        t = train_label[:3]
-
-        # fitメソッドを動かすことにより、全レイヤーの（中のAffineレイヤー）のgradientとnumerical_gradientを実行してメモリに保持。
-        # ただし、numerical_gradient=Trueを指定しているので注意。
-        self.nn.fit(train_data=x, train_label=t)
-        #self.nn.fit(train_data=x, train_label=t, init_weight_stddev=0.01, epoch_num=3, mini_batch_size=100, learning_rate=0.01, numerical_gradient=True)
-
-        for i, layer in enumerate(self.nn.layers):
-            bg = layer.affine.dLdW
-            # print(bg)
-            ng = layer.affine.numerical_dLdW
-            # print(ng)
-
-            # Wの各成分ごとの差異の絶対値を、全成分に渡って平均。
-            diff = np.average(np.abs(bg - ng))
-            print("layer[{0}]: diff={1}".format(i, diff))
