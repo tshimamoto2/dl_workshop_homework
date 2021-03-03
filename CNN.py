@@ -9,8 +9,8 @@ class CNN:
                  loss_func=None,  # 損失関数（必須）
                  learner=None,  # 学習アルゴリズム（必須）
                  regularization=None,  # 正則化（任意）
-                 dropout_params=None,  # ドロップアウト（任意）
-                 batch_normal_params=None  # バッチ正規化（任意）
+                 # dropout_params=None,  # ドロップアウト（任意）
+                 # batch_normal_params=None  # バッチ正規化（任意）
                  ):
 
         self.layers = layers
@@ -18,8 +18,8 @@ class CNN:
         self.learner.set_NN(self)
         self.loss_func = loss_func
         self.regularization = regularization
-        self.dropout_params = dropout_params
-        self.batch_normal_params = batch_normal_params
+        # self.dropout_params = dropout_params
+        # self.batch_normal_params = batch_normal_params
 
     ###############################
     # fit method
