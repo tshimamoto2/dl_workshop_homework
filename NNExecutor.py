@@ -43,27 +43,26 @@ class NNExecutor:
         # （DNN例）layers=[Dropout(), Affine(), BatchNormal(), ReLU(), Dropout(), Affine(), SoftmaxWithLoss()],
         # （CNN例）layers=[Conv(), ReLU(), Pool(), Affine(), ReLU(), Affine(), Dropout(), SoftmaxWithLoss()],
         model = CNN(layers=[
-                            # 28x28
-                            Conv(FN=1, FH=2, FW=2, padding=0, stride=1, weight=NormalWeight(stddev=0.01)),
-                            # 27x27
-                            Tanh(),
-                            MaxPool(FH=2, FW=2, padding=0, stride=1),
-                            # 26x26
-                            Affine(crnt_size=100, weight=HeWeight(prev_size=26*26)),
-                            Tanh(),
-                            Affine(crnt_size=5, weight=HeWeight(prev_size=26*26)),
-                            SoftmaxWithLoss()
-                            ],
-                    loss_func=CrossEntropyError(),
-                    #learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=AdaGrad(learning_rate=0.01)),
-                    # learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=SGD(learning_rate=0.01)),
-
-                    # learner=KFoldCrossValidation(kfold_num=10, optimizer=SGD(learning_rate=0.01)),
-                    learner=KFoldCrossValidation(kfold_num=10, optimizer=AdaDelta(decay_rate=0.9)),
-                    # regularization=None,  # 正則化（任意）
-                    # dropout_params=DropoutParams(input_retain_rate=0.8, hidden_retain_rate=0.5),
-                    # batch_normal_params=BatchNormalParams(gamma=2.0, beta=0.0, moving_decay=0.9),
-                    )
+                # 28x28
+                Conv(FN=16, FH=3, FW=3, padding=1, stride=1, weight=NormalWeight(stddev=0.01)),
+                # 28x28 ... (28+2*1-3)/1+1=28
+                ReLU(),
+                MaxPool(FH=2, FW=2, padding=0, stride=2),
+                # 14x14 ... (28+2*0-2)/2+1=14
+                Affine(node_size=100, weight=HeWeight()),
+                ReLU(),
+                Affine(node_size=5, weight=HeWeight()),
+                SoftmaxWithLoss()
+            ],
+            loss_func=CrossEntropyError(),
+            # learner=MiniBatch(epoch_num=100, mini_batch_size=20, optimizer=SGD(learning_rate=0.01)),
+            learner=MiniBatch(epoch_num=50, mini_batch_size=20, optimizer=AdaGrad(learning_rate=0.01)),
+            # learner=KFoldCrossValidation(kfold_num=10, optimizer=SGD(learning_rate=0.01)),
+            # learner=KFoldCrossValidation(kfold_num=20, optimizer=AdaDelta(decay_rate=0.9)),
+            regularization=L2(lmda=0.005),
+            # dropout_params=DropoutParams(input_retain_rate=0.8, hidden_retain_rate=0.5),
+            # batch_normal_params=BatchNormalParams(gamma=2.0, beta=0.0, moving_decay=0.9),
+        )
         return model
 
     ##################################################

@@ -9,12 +9,16 @@ class L2:
 
     def update_dLdW(self, layers):
         for layer in layers:
-            layer.affine.dLdW += self.lmda * layer.affine.W
+            if layer.has_weight() == False:
+                continue
+            layer.dLdW += self.lmda * layer.W
 
     def regular(self, layers):
         regular = 0
         for layer in layers:
-            regular += 0.5 * self.lmda * np.sum(layer.affine.W ** 2)
+            if layer.has_weight() == False:
+                continue
+            regular += 0.5 * self.lmda * np.sum(layer.W ** 2)
         return regular
 
 # TODO 実装して使用してみたが学習が進まない。何らかのバグがありそうなので一旦削除。

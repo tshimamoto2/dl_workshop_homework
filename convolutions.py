@@ -45,6 +45,9 @@ class Conv:
         self.dLdW = None  # 損失関数の、本畳み込み層の重みによる偏微分値
         self.dLdB = None  # 損失関数の、本畳み込み層のバイアスによる偏微分値
 
+    def has_weight(self):
+        return True
+
     def forward(self, x, t, is_learning=False):
         # 誤差逆伝播のために保持。
         self.x = x
@@ -106,6 +109,9 @@ class MaxPool:
         self.x2d = None
         self.out = None
         self.arg_max = None
+
+    def has_weight(self):
+        return False
 
     def forward(self, x, t, is_learning_False):
         self.x = x

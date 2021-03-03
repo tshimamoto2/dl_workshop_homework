@@ -55,6 +55,7 @@ class MiniBatch:
         l_accuracy_list = []
         v_loss_list = []
         v_accuracy_list = []
+        perform_csv_list = []
 
         # 早期終了用の前エポックでの損失の初期化。前エポックの損失よりも低くなれば更新するので、floatの最大値を初期値としておく。
         prev_loss = sys.float_info.max
@@ -107,6 +108,8 @@ class MiniBatch:
 
             print("★epoch[{0}]終了：l_loss={1:.4f}, l_accuracy={2:.4f}, v_loss={3:.4f}, v_accuracy={4:.4f}".format(i, l_loss, l_accuracy, v_loss, v_accuracy))
 
+            perform_csv_list.append(list([i, "{0:.4f}".format(l_loss), "{0:.4f}".format(l_accuracy), "{0:.4f}".format(v_loss), "{0:.4f}".format(v_accuracy)]))
+
             # 早期終了判定。
             if self.early_stopping_params is not None:
                 is_stop, prev_loss, worsen_count = is_early_stopping(self.early_stopping_params, prev_loss, v_loss, worsen_count)
@@ -120,6 +123,14 @@ class MiniBatch:
             np.average(v_loss_list), np.average(v_accuracy_list), np.max(v_accuracy_list), np.argmax(v_accuracy_list)
         ))
         print()
+
+        # 推移の保存
+        with open('perform.csv', 'w') as f:
+            w = csv.writer(f, lineterminator='\n')
+            w.writerow(list(["epoch", "l_loss", "l_accuracy", "v_loss", "v_accuracy"]))
+            for i in range(self.epoch_num):
+                w.writerow(perform_csv_list[i])
+
 
 class KFoldCrossValidation:
     def __init__(self, kfold_num, optimizer=SGD(learning_rate=0.01), early_stopping_params=None):

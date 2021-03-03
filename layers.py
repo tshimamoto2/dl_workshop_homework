@@ -1,19 +1,20 @@
 import numpy as np
+from abc import ABCMeta, abstractmethod
 
 ##################################################
-# 共通クラス、メソッドなど。
+# 重みの初期値クラス
 ##################################################
 class XavierWeight:
-    def __init__(self, prev_size, crnt_size):
-        self.stddev = np.sqrt(2.0 / (prev_size + crnt_size))
-    def get_stddev(self):
-        return self.stddev
+    def __init__(self):
+        pass
+    def get_stddev(self, prev_size, crnt_size):
+        return np.sqrt(2.0 / (prev_size + crnt_size))
 
 class HeWeight:
-    def __init__(self, prev_size):
-        self.stddev = np.sqrt(2.0 / prev_size)
-    def get_stddev(self):
-        return self.stddev
+    def __init__(self):
+        pass
+    def get_stddev(self, prev_size):
+        return np.sqrt(2.0 / prev_size)
 
 class NormalWeight:
     def __init__(self, stddev):
@@ -32,9 +33,14 @@ class NormalWeight:
 #   ・入力の第1次元はバッチ軸であること。
 #   ・CNNで使用される場合にはforwardの入力xがテンソルである場合もあるので、2次元化すること。
 ##################################################
-class Affine:
-    def __init__(self, crnt_size=100, weight=NormalWeight(0.01)):
-        self.crnt_size = crnt_size
+class Layer(metaclass=ABCMeta):
+    @abstractmethod
+    def has_weight(self):
+        pass
+
+class Affine(Layer):
+    def __init__(self, node_size=100, weight=NormalWeight(0.01)):
+        self.node_size = node_size
         self.weight = weight
 
         self.W = None
@@ -48,10 +54,27 @@ class Affine:
         self.channel_size = None
         self.height = None
         self.width = None
-        self.prev_size = None
+        self.prev_node_size = None
 
         self.numerical_dLdW = None
         self.numerical_dLdB = None
+
+    def has_weight(self):
+        return True
+
+    def init_weight(self, prev_node_size=784, node_size=100):
+        stddev = None
+        if isinstance(self.weight, XavierWeight):
+            stddev = self.weight.get_stddev(prev_node_size, node_size)
+        elif isinstance(self.weight, HeWeight):
+            stddev = self.weight.get_stddev(prev_node_size)
+        elif isinstance(self.weight, NormalWeight):
+            stddev = self.weight.get_stddev()
+        else:
+            pass
+        weight = np.random.randn(prev_node_size, node_size) * stddev
+        bias = np.zeros(node_size)
+        return weight, bias
 
     # TODO tは未使用。使わない変数は渡したくないので、抽象クラスを作って吸収したい。
     def forward(self, x, t, is_learning=False):
@@ -59,13 +82,13 @@ class Affine:
         if x.ndim == 2:
             self.x2d = x
             self.batch_size = x.shape[0]
-            self.prev_size = x.shape[1]
+            self.prev_node_size = x.shape[1]
         elif x.ndim == 4:
             # 入力xが4次元テンソルの場合2次元化しておく。ただし、逆伝播のために、オリジナルの入力xの次元構造を覚えておく必要がある。
             self.x2d = x.reshape(x.shape[0], -1)
 
             self.batch_size, self.channel_size, self.height, self.width = x.shape
-            self.prev_size = self.channel_size * self.height * self.width
+            self.prev_node_size = self.channel_size * self.height * self.width
             self.is_input_4d = True
         else:
             # 上記以外の次元構造は想定外。TODO エラーにするべきでは？
@@ -74,7 +97,7 @@ class Affine:
 
         # 重み、バイアスの生成・初期化。
         if self.W is None:
-            self.W, self.B = self.init_weight(self.prev_size, self.crnt_size)
+            self.W, self.B = self.init_weight(self.prev_node_size, self.node_size)
 
         # アフィン変換。
         out = np.dot(self.x2d, self.W) + self.B
@@ -84,21 +107,18 @@ class Affine:
         self.dLdW = np.dot(self.x2d.T, dout)
         self.dLdB = np.sum(dout, axis=0)
         dout = np.dot(dout, self.W.T)
-        
+
         if self.is_input_4d:
             dout = dout.reshape(self.batch_size, self.channel_size, self.height, self.width)
 
         return dout
 
-    def init_weight(self, prev_size=784, crnt_size=100):
-        weight = np.random.randn(prev_size, crnt_size) * self.weight.get_stddev()
-        bias = np.zeros(crnt_size)
-        return weight, bias
-
-
-class Sigmoid:
+class Sigmoid(Layer):
     def __init__(self):
         self.out = None
+
+    def has_weight(self):
+        return False
 
     # tは未使用。
     # TODO debug 使わない変数は渡したくないので、抽象クラスを作って吸収したい。
@@ -110,9 +130,12 @@ class Sigmoid:
         dLdx = dout * self.out * (1.0 - self.out)
         return dLdx
 
-class Tanh:
+class Tanh(Layer):
     def __init__(self):
         self.out = None
+
+    def has_weight(self):
+        return False
 
     # tは未使用。
     # TODO debug 使わない変数は渡したくないので、抽象クラスを作って吸収したい。
@@ -123,7 +146,7 @@ class Tanh:
     def backward(self, dout):
         return dout * (1.0 - self.out**2)
 
-class ReLU:
+class ReLU(Layer):
     def __init__(self):
         self.mask = None
 
@@ -134,6 +157,9 @@ class ReLU:
         self.height = None
         self.width = None
         self.prev_size = None
+
+    def has_weight(self):
+        return False
 
     # tは未使用。
     # TODO debug 使わない変数は渡したくないので、抽象クラスを作って吸収したい。
@@ -174,10 +200,13 @@ class ReLU:
 
         return dout
 
-class SoftmaxWithLoss:
+class SoftmaxWithLoss(Layer):
     def __init__(self):
         self.y = None
         self.t = None
+
+    def has_weight(self):
+        return False
 
     def forward(self, x, t, is_learning=False):
         self.y = self.softmax(x)
@@ -211,10 +240,13 @@ class DropoutParams:
         self.input_retain_rate = input_retain_rate
         self.hidden_retain_rate = hidden_retain_rate
 
-class Dropout:
+class Dropout(Layer):
     def __init__(self, retain_rate=0.5):
         self.retain_rate = retain_rate
         self.mask = None
+
+    def has_weight(self):
+        return False
 
     # tは未使用。
     def forward(self, x, t, is_learning=False):
@@ -357,7 +389,7 @@ class BatchNormalParams:
         self.beta = beta
         self.moving_decay = moving_decay
 
-class BatchNormal:
+class BatchNormal(Layer):
     def __init__(self, batch_normal_params):
         self.gamma = batch_normal_params.gamma
         self.beta = batch_normal_params.beta
@@ -377,6 +409,9 @@ class BatchNormal:
 
         self.moving_ex = None  #  E[x]の移動平均（xはD個のベクトル）
         self.moving_varx = None  #  Var[x]の移動平均（xはD個のベクトル）
+
+    def has_weight(self):
+        return False
 
     # 順伝播。
     # 入力データxの行方向にはミニバッチサイズ分だけの処理対象データが並んでいるとする。N個とする。
@@ -488,7 +523,7 @@ class BatchNormal:
 ##################################################
 # 隠れ層クラス
 ##################################################
-class HiddenLayer:
+class HiddenLayer(Layer):
     def __init__(self, W, B, actfunc, batch_normal_params=None, input_dropout=None, hidden_dropout=None):
         self.affine = Affine(W, B)
         self.activation = actfunc
@@ -501,6 +536,9 @@ class HiddenLayer:
         self.batch_normal = None
         if self.batch_normal_params is not None:
             self.batch_normal = BatchNormal(self.batch_normal_params)
+
+    def has_weight(self):
+        return True
 
     def forward(self, x, t, is_learning=False):
         z = x
@@ -552,11 +590,14 @@ class HiddenLayer:
 ##################################################
 # 出力層クラス
 ##################################################
-class LastLayer:
+class LastLayer(Layer):
     def __init__(self, W, B, actfunc):
         self.affine = Affine(W, B)
         self.activation = actfunc
         self.act_dist = None
+
+    def has_weight(self):
+        return True
 
     # is_learningは未使用。HiddenLayerクラスと形を合わせただけ。
     # TODO debug 使わない変数は渡したくないので、抽象クラスを作って吸収したい。
@@ -571,5 +612,3 @@ class LastLayer:
         dout = self.activation.backward(dout)
         dout = self.affine.backward(dout)
         return dout
-
-

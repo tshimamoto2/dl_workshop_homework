@@ -13,7 +13,7 @@ class SGD:
 
     def update(self, nn):
         for i, layer in enumerate(nn.layers):
-            if has_weight(layer) == False:
+            if layer.has_weight() == False:
                 continue
             # CNN対応版。
             layer.W -= self.learning_rate * layer.dLdW
@@ -35,7 +35,7 @@ class Momentum:
             self.v_W = []
             self.v_B = []
             for i, layer in enumerate(nn.layers):
-                if has_weight(layer) == False:
+                if layer.has_weight() == False:
                     continue
                 # CNN対応版。
                 self.v_W.append(np.zeros_like(layer.W))
@@ -45,7 +45,7 @@ class Momentum:
                 # self.v_B.append(np.zeros_like(layer.affine.B))
 
         for i, layer in enumerate(nn.layers):
-            if has_weight(layer) == False:
+            if layer.has_weight() == False:
                 continue
             # CNN対応版。
             self.v_W[i] = self.decay_rate * self.v_W[i] - self.learning_rate * layer.dLdW
@@ -72,7 +72,7 @@ class AdaGrad:
             self.h_B = []
             i = 0
             for layer in nn.layers:
-                if has_weight(layer) == False:
+                if layer.has_weight() == False:
                     continue
                 # CNN対応版。
                 self.h_W.append(np.zeros_like(layer.W))
@@ -83,7 +83,7 @@ class AdaGrad:
 
         i = 0
         for layer in nn.layers:
-            if has_weight(layer) == False:
+            if layer.has_weight() == False:
                 continue
             # CNN対応版。
             self.h_W[i] += layer.dLdW * layer.dLdW
@@ -114,7 +114,7 @@ class AdaDelta:
             self.Exp_dx2_B = []
             i = 0
             for layer in nn.layers:
-                if has_weight(layer) == False:
+                if layer.has_weight() == False:
                     continue
                 # CNN対応版。
                 self.Exp_gt2_W.append(np.zeros_like(layer.W))
@@ -130,7 +130,7 @@ class AdaDelta:
 
         i = 0
         for layer in nn.layers:
-            if has_weight(layer) == False:
+            if layer.has_weight() == False:
                 continue
             # CNN対応版。
             # Accumulate Gradient
@@ -227,7 +227,7 @@ class RMSProp:
             self.h_W = []
             self.h_B = []
             for i, layer in enumerate(nn.layers):
-                if has_weight(layer) == False:
+                if layer.has_weight() == False:
                     continue
                 # CNN対応版。
                 self.h_W.append(np.zeros_like(layer.W))
@@ -237,7 +237,7 @@ class RMSProp:
                 # self.h_B.append(np.zeros_like(layer.affine.B))
 
         for i, layer in enumerate(nn.layers):
-            if has_weight(layer) == False:
+            if layer.has_weight() == False:
                 continue
             # CNN対応版。
             self.h_W[i] = self.h_W[i] + layer.dLdW * layer.dLdW
@@ -269,7 +269,7 @@ class Adam:
             self.v_W = []
             self.v_B = []
             for i, layer in enumerate(nn.layers):
-                if has_weight(layer) == False:
+                if layer.has_weight() == False:
                     continue
                 # CNN対応版。
                 self.m_W.append(np.zeros_like(layer.W))
@@ -283,7 +283,7 @@ class Adam:
                 # self.v_B.append(np.zeros_like(layer.affine.B))
 
         for i, layer in enumerate(nn.layers):
-            if has_weight(layer) == False:
+            if layer.has_weight() == False:
                 continue
             # CNN対応版。
             self.m_W[i] = self.decay_rate1 * self.m_W[i] + (1.0 - self.decay_rate1) * layer.dLdW
@@ -330,7 +330,7 @@ class NAG:
             self.v_W = []
             self.v_B = []
             for i, layer in enumerate(nn.layers):
-                if has_weight(layer) == False:
+                if layer.has_weight() == False:
                     continue
                 # CNN対応版。
                 self.v_W.append(np.zeros_like(layer.W))
@@ -340,7 +340,7 @@ class NAG:
                 # self.v_B.append(np.zeros_like(layer.affine.B))
 
         for i, layer in enumerate(nn.layers):
-            if has_weight(layer) == False:
+            if layer.has_weight() == False:
                 continue
             # CNN対応版。
             layer.W += self.decay_rate**2 * self.v_W[i] - (1 + self.decay_rate) * self.learning_rate * layer.dLdW
