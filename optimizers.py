@@ -112,7 +112,8 @@ class AdaDelta:
             self.Exp_gt2_B = []
             self.Exp_dx2_W = []
             self.Exp_dx2_B = []
-            for i, layer in enumerate(nn.layers):
+            i = 0
+            for layer in nn.layers:
                 if has_weight(layer) == False:
                     continue
                 # CNN対応版。
@@ -120,13 +121,15 @@ class AdaDelta:
                 self.Exp_gt2_B.append(np.zeros_like(layer.B))
                 self.Exp_dx2_W.append(np.zeros_like(layer.dLdW))
                 self.Exp_dx2_B.append(np.zeros_like(layer.dLdB))
+                i += 1
                 # DNN対応版。
                 # self.Exp_gt2_W.append(np.zeros_like(layer.affine.W))
                 # self.Exp_gt2_B.append(np.zeros_like(layer.affine.B))
                 # self.Exp_dx2_W.append(np.zeros_like(layer.affine.dLdW))
                 # self.Exp_dx2_B.append(np.zeros_like(layer.affine.dLdB))
 
-        for i, layer in enumerate(nn.layers):
+        i = 0
+        for layer in nn.layers:
             if has_weight(layer) == False:
                 continue
             # CNN対応版。
@@ -145,6 +148,8 @@ class AdaDelta:
             # Apply Updates
             layer.W += dW
             layer.B += dB
+
+            i += 1
 
             # DNN対応版。
             # # Accumulate Gradient

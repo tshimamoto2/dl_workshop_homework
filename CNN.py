@@ -65,7 +65,7 @@ class CNN:
 
     def predict(self, x, t, is_learning=False):
         z = x
-        for i, layer in enumerate(self.layers):
+        for layer in self.layers:
             z = layer.forward(z, t, is_learning)
             # print("{0:20s}の順伝播：input.shape({1}) --> output.shape({2})".format(layer.__class__.__name__, x.shape, z.shape))
 

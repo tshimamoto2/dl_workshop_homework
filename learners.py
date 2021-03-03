@@ -138,15 +138,12 @@ class KFoldCrossValidation:
         np.random.shuffle(shuffled_indexes)
 
         # 1個分のデータ個数
-        each_data_num = int(np.floor(train_data.shape[0] / self.kfold_num))
+        each_data_num = train_data.shape[0] // self.kfold_num
 
-        # 訓練データのk分割。
-        split_data = []
-        split_label = []
+        # 訓練データのシャッフル後インデックスをk分割する。
+        mask = []
         for k in range(self.kfold_num):
-            mask = shuffled_indexes[(each_data_num * k): (each_data_num * (k + 1))]
-            split_data.append(train_data[mask])
-            split_label.append(train_label[mask])
+            mask.append(shuffled_indexes[(each_data_num * k): (each_data_num * (k + 1))])
 
         # 各エポックの性能。
         l_loss_list = []
@@ -162,19 +159,19 @@ class KFoldCrossValidation:
         # 分割個数分のループ。
         for k in range(self.kfold_num):
             # 分割データのうちインデックス[k]のものを検証データとして取り分け（hold out）、残りの分割データを使って学習を行う。
-            v_data = split_data[k]
-            v_label = split_label[k]
-
-            # 分割データのうちインデックス[k]以外のものを、訓練データでの性能算出のために配列として保持しておく。
-            l_data = np.delete(split_data.copy(), k, axis=0).reshape(-1, train_data.shape[1])
-            l_label = np.delete(split_label.copy(), k, axis=0).reshape(-1, train_label.shape[1])
+            dup_data = train_data.copy()
+            dup_label = train_label.copy()
+            v_data = dup_data[mask[k]]
+            v_label = dup_label[mask[k]]
+            l_data = np.delete(dup_data, mask[k], axis=0)
+            l_label = np.delete(dup_label, mask[k], axis=0)
 
             for j in range(self.kfold_num):
                 if j == k:
                     continue
 
                 # 勾配計算。
-                self.nn.gradient(split_data[j], split_label[j])
+                self.nn.gradient(l_data, l_label)
 
                 # 重みの更新。
                 # ただし、その前に、正則化がある場合は各レイヤーのAffineのdLdWを正則化項の偏微分で更新しておく。
@@ -220,4 +217,3 @@ class KFoldCrossValidation:
             w.writerow(list(["epoch", "l_loss", "l_accuracy", "v_loss", "v_accuracy"]))
             for k in range(self.kfold_num):
                 w.writerow(perform_csv_list[k])
-
